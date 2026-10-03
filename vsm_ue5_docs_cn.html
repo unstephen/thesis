@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虚幻引擎中的虚拟阴影贴图（VSM）</title>
+<style>
+:root{
+  --ink:#1c2126; --ink2:#4a525a; --paper:#fbfaf7; --card:#ffffff;
+  --accent:#0e6f63; --accent-soft:#eef6f4; --accent-line:#cfe4e0;
+  --amber:#8a6d1f; --amber-soft:#faf6ea;
+  --line:#e5e1d8; --code-bg:#f4f2ec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",-apple-system,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:99;transition:width .1s}
+.back-shelf{position:fixed;top:12px;left:14px;z-index:97;background:var(--card);color:var(--accent);
+  border:1px solid var(--line);border-radius:99px;padding:5px 14px;font-size:13px;text-decoration:none;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);opacity:.92}
+.back-shelf:hover{opacity:1;background:var(--accent-soft)}
+@media print{.back-shelf{display:none}}
+#top-btn{position:fixed;right:22px;bottom:26px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+  background:var(--card);color:var(--accent);font-size:18px;cursor:pointer;opacity:0;pointer-events:none;transition:.25s;z-index:98;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#top-btn.on{opacity:1;pointer-events:auto}
+
+/* ---------- 封面 ---------- */
+.cover{background:linear-gradient(160deg,#0d3b36 0%,#0e6f63 55%,#16917f 100%);color:#fff;padding:72px 24px 60px}
+.cover-inner{max-width:880px;margin:0 auto}
+.cover-kicker{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.85;margin-bottom:14px}
+.cover h1{font-size:52px;margin:0 0 6px;font-weight:800;letter-spacing:.04em}
+.cover-sub{font-size:20px;opacity:.92;font-weight:300;margin-bottom:22px}
+.cover-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:99px;
+  padding:4px 14px;font-size:13px}
+.cover-note{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:12px;
+  padding:18px 22px;font-size:15px;line-height:1.9}
+.cover-note a{color:#ffe9a8}
+.tiny{font-size:12.5px;opacity:.8}
+
+/* ---------- 布局 ---------- */
+.layout{max-width:1240px;margin:0 auto;padding:0 20px;display:flex;gap:34px;align-items:flex-start}
+#toc{position:sticky;top:0;width:250px;flex:0 0 250px;max-height:100vh;overflow-y:auto;padding:34px 0 40px;
+  font-size:14px;border-right:1px solid var(--line)}
+.toc-head{font-weight:700;color:var(--ink2);letter-spacing:.2em;font-size:12px;margin-bottom:12px}
+.toc-item{display:block;color:var(--ink2);text-decoration:none;padding:6px 12px;border-radius:8px;line-height:1.5;
+  border-left:2px solid transparent}
+.toc-item:hover{background:var(--accent-soft);color:var(--accent)}
+.toc-item.now{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+#content{flex:1;min-width:0;padding:30px 0 60px;max-width:860px}
+
+/* ---------- 章节 ---------- */
+.chapter{margin-bottom:70px}
+.ch-head{border-bottom:2px solid var(--accent);padding-bottom:10px;margin:26px 0 8px}
+.ch-en{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.ch-head h2{margin:2px 0 0;font-size:30px;font-weight:800}
+
+.sec-h{margin:38px 0 4px;padding-left:12px;border-left:4px solid var(--accent)}
+.sec-h h3{margin:0;font-size:21px}
+.sec-h-en{font-size:12.5px;color:var(--ink2);opacity:.75}
+
+/* ---------- 段落卡 ---------- */
+.para{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 26px 18px;margin:20px 0;
+  box-shadow:0 1px 3px rgba(30,30,30,.04)}
+.zh{font-size:17px;line-height:2.05;color:var(--ink)}
+.zh p{margin:10px 0}
+.zh ul,.zh ol{margin:8px 0 8px 4px;padding-left:22px}
+.zh li{margin:5px 0}
+.ex-sub{margin:14px 0 4px!important;font-weight:700;color:var(--accent)}
+.orig{margin:0 0 12px;border:1px dashed var(--line);border-radius:10px;background:#fcfbf8}
+.orig summary{cursor:pointer;padding:7px 14px;font-size:13px;color:var(--ink2);user-select:none}
+.orig summary:hover{color:var(--accent)}
+.orig-body{padding:4px 16px 14px;font-size:14px;line-height:1.85;color:#5a626a;
+  font-family:Georgia,"Times New Roman",serif}
+.ex-card{margin-top:16px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;
+  padding:14px 20px 12px;font-size:15.2px;line-height:1.95;color:#22333a}
+.ex-title{font-weight:800;color:var(--accent);font-size:14px;letter-spacing:.08em;margin-bottom:6px}
+.ex-card p{margin:8px 0}
+.ex-card ul,.ex-card ol{margin:6px 0 6px 2px;padding-left:20px}
+.ex-card li{margin:4px 0}
+.formula{font-family:"Cambria Math",Georgia,serif;text-align:center;background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;margin:10px auto;font-size:16px;overflow-x:auto}
+
+/* ---------- 插图 ---------- */
+.fig-plate{margin:26px 0;text-align:center}
+.fig-plate img{max-width:100%;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.07)}
+.fig-plate figcaption{font-size:13px;color:var(--ink2);margin-top:8px}
+
+/* ---------- 参考文献 ---------- */
+.ref-list{padding-left:0;list-style:none;counter-reset:ref}
+.ref{counter-increment:ref;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 20px;margin:12px 0}
+.ref-txt{font-family:Georgia,serif;font-size:14.5px;color:#3c444c}
+.ref-txt::before{content:counter(ref)" · ";font-weight:800;color:var(--accent)}
+.ref-cmt{margin-top:8px;font-size:14.6px;color:var(--ink);background:var(--amber-soft);border-left:3px solid #d9c98a;
+  padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.9}
+
+.foot{text-align:center;color:var(--ink2);font-size:13px;padding:26px 16px 40px;border-top:1px solid var(--line);margin-top:30px}
+a{color:var(--accent)}
+code{background:var(--code-bg);border-radius:5px;padding:1px 6px;font-size:.92em;
+  font-family:Consolas,"Courier New",monospace}
+
+@media (max-width:1080px){
+  #toc{display:none}
+  .layout{display:block}
+  .cover h1{font-size:38px}
+}
+
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<a class="back-shelf" href="index.html" title="返回收录书架">← 收录书架</a>
+<button id="top-btn" title="回到顶部">↑</button>
+
+<header class="cover">
+  <div class="cover-inner">
+    <div class="cover-kicker">Epic 官方文档 · 中文解析</div>
+    <h1>虚幻引擎中的虚拟阴影贴图（VSM）</h1>
+    <div class="cover-sub">Virtual Shadow Maps in Unreal Engine —— 官方中文文档全量精读：page 布局、缓存机制、三层渲染路径与调试，解析补足官方没讲的显存账与移动端缺席原因</div>
+    <div class="cover-meta"><span class="chip">UE5</span><span class="chip">官方文档</span><span class="chip">VSM</span><span class="chip">中文</span><span class="chip">Epic</span></div>
+    <div class="cover-note">UE5 的 Virtual Shadow Maps 是阴影虚拟化路线的代表作：128×128 page 按需渲染、clipmap 组合、每帧重渲染换全程一致分辨率。这份精读把官方中文文档全文保留为 ZH 段，🔍解析做'文档之外的事'——页池显存账（官方没给数值）、page churn 的诊断口径、移动端缺席的四条硬原因、与 CSM 有状态/无状态的本质差异，以及两处官方文档自身的硬伤。<br><br><b>怎么读</b>：ZH=官方原文（逐段无省略），EX=解析。配对读：书架 Nanite 深潜（VSM 设计动机）与 CSM Scrolling（虚拟化之前的主机优化）。</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="toc"><div class="toc-head">目录</div><a class="toc-item" href="#vsm-doc">UE5 虚拟阴影贴图官方文档（中文解析）</a></nav>
+  <main id="content">
+<section class="chapter" id="vsm-doc">
+<header class="ch-head"><span class="ch-en">Virtual Shadow Maps in Unreal Engine (Official Docs)</span><h2>UE5 虚拟阴影贴图官方文档（中文解析）</h2></header>
+<div class="sec-h"><h3># 虚幻引擎中的虚拟阴影贴图（Virtual Shadow Maps in Unreal Engine）</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这是 Epic 官方文档中关于虚拟阴影贴图（VSM）的主条目，属于"引擎特性说明文档"而非论文。它的写作目的是给内容创作者和技术美术看的：讲清 VSM 是什么、怎么开、会替换掉哪些旧机制、怎么调参、怎么排障。因此在解析时，本篇会做三类"文档之外"的工作：（1）把每一句现象描述还原成底层机制（页分配、缓存失效、深度分析）；（2）点出官方刻意略过或含糊的地方（页池显存账、移动端为何不可用、与 Lumen 的数据交换）；（3）把 VSM 放回实时阴影技术谱系中对照——CSM/PSSM 的老路、PCSS/方差阴影贴图的软阴影路线、硬件光追阴影、以及 id Tech 的虚拟纹理思想。注意一个术语陷阱：阴影映射文献里的 VSM 通常指 Variance Shadow Maps（方差阴影贴图，Donnelly &amp; Lauritzen 2006），而 UE5 的 VSM 是 Virtual Shadow Maps，两者毫无关系，检索资料时务必区分。</p></div>
+<article class="para">
+<div class="zh"><p>来源：https://dev.epicgames.com/documentation/zh-cn/unreal-engine/virtual-shadow-maps-in-unreal-engine （Epic Developer Community 官方中文文档，虚幻引擎 5.x）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>出处是 Epic 官方开发者社区的中文版页面。官方中文文档由英文版翻译而来，术语基本能对上，但有几个翻译点需要校准：区块（Page）即"页/瓦片"；裁剪图（Clipmap）即"裁剪层级图"，源自几何 clipmap 的概念；百分比渐近筛选是 Percentage-Closer Filtering（PCF）的旧译，更常见译法是"百分比渐近过滤/百分比更近滤波"；接触硬化（Contact Hardening）即"接触硬化"，指靠近接触点的阴影变硬。控制台变量名（r.Shadow.Virtual.*） untranslated 保留原文，这是排障时唯一可靠的搜索关键词——中文文档搜不到社区讨论，遇到诡异问题应回到英文变量名去搜 UDN/论坛/源码。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>&gt; 说明：本页正文中原本穿插大量引擎截图/图示。该站点为 Angular SPA + Cloudflare 防护，图片全部由客户端 &gt; 懒加载注入，静态抓取的 HTML 与渲染代理均拿不到 <code>&lt;img src&gt;</code>（原始 HTML 中 img 标签数为 0），因此 &gt; <code>figs/</code> 为空，未生成 <code>[[FIG n]]</code> 标记。正文文字完整，如下。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是抓取阶段的工程说明，不属于原文正文。它的实际影响是：本文中所有以"／"分隔的短句（例如"源半径为0的点光源 ／ 源半径为10的点光源"）都是成对/成组的截图标题，原文靠图传达的对比信息丢了。好在丢失的主要是"视觉对比"（有没有噪点、有没有棋盘格），机制信息正文里都完整保留。解析时凡是遇到这类孤立的短句块，会额外补上"那张图本该说明什么"。具体到本篇，丢失的图集中在四类：SMRT 的软硬阴影对比、clipmap 与页的可视化、缓存页与失效边界的可视化、以及各种瑕疵（非一致半影、低模明暗界限、棋盘格损坏）的样例。前三类属于“看图更直观但文字可推断”，最后一类属于“不看图很难想象故障长相”，因此解析里对后者补了文字化的症状描述（例如棋盘格 = 页粒度的规律性损坏、失效边界可视化里的红色页环），可以当作图缺失时的替代参照，也方便在真机上对照复现。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p><strong>虚拟阴影贴图（VSM）</strong>是一种全新的阴影映射方法，可以提供稳定的高分辨率阴影，通过与虚幻引擎5的 Nanite虚拟几何体、Lumen全局光照和反射 以及 世界分区 功能结合使用，它能够处理电影级品质的资产，为大型开放世界提供动态光照。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这句话其实是 UE5 渲染架构的总纲：VSM 是继虚拟纹理（VT）、Nanite 虚拟几何体之后的第三次"虚拟化"，三者解决的是同一个矛盾——数据按资产精度组织，而屏幕只需要像素精度。虚拟纹理让贴图按需驻留，Nanite 让三角形按需绘制，VSM 让阴影纹素按需渲染。Nanite 之所以必须配 VSM，原因有二：一是 Nanite 把几何细节推到微多边形量级，传统 2K~4K 级联阴影贴图的纹素密度（往往每屏幕像素不到 1 个阴影纹素）立刻成为视觉短板，几何再细阴影糊了也没用；二是 Nanite 的 GPU-driven 管线天然不支持逐对象阴影这类"按图元干预"的老技巧，只能整块重绘，于是"只渲染需要的部分 + 跨帧缓存"成了唯一出路。句中的"稳定"在阴影术语里是有专门含义的：指时间稳定性，即摄像机/光源移动时阴影边缘不闪烁、不泳动、没有级联切换缝——这正是 CSM 的老毛病。另外"与 Lumen 结合使用"一句很轻，但背后是重耦合：Lumen 的表面缓存直接光照、最终聚集命中点的光照求值都要查阴影，VSM 就是它的可见性来源之一，本页对这一点几乎没展开（详见后文解析）。</p></div>
+</article>
+<div class="sec-h"><h3>## 虚拟阴影贴图的目标</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一小节列出四条设计目标，读起来像产品宣传，实际上是理解 VSM 全部工程取舍的钥匙。四条目标各自对应一个具体的技术决策：第一"配合 Nanite"决定了必须做页级按需渲染而不是整张重绘；第二"真实的柔和阴影"决定了要有 SMRT 这样的采样算法而不只是更高分辨率的硬阴影；第三"默认可用、少量调整"决定了它必须作为一个统一系统替换掉 UE4 那一整套光源类型×移动性×静态/动态的阴影矩阵；第四"单一统一方法"决定了牺牲掉预阴影、内嵌阴影这些针对性优化的可能性。后面所有章节（启用、裁剪图、缓存、性能）都可以回到这四条上找到原因。</p></div>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图的开发目标如下：</p>
+<ul><li>显著提升阴影分辨率，以便配合拥有高度细节内容的 Nanite 几何体</li><li>以合理、可控的性能开销，获得真实的柔和阴影</li><li>提供一个简单解决方案，能够默认使用，并且只需少量的调整工作</li><li>用单一、统一的方法替代各种固定光源阴影技术</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>逐条看。第一条"分辨率"：UE4 定向光 CSM 在 2048 分辨率下，近处级联大约每阴影纹素对应 1~4 个屏幕像素，Nanite 场景里一根草叶都可能小于这个尺度，阴影会直接把几何细节抹平。VSM 的答案是虚拟 16K + 多级 clipmap，让"近处纹素密度接近 1:1"成为常态。第二条"真实的柔和阴影"：传统 PCF 是固定核宽度的均匀模糊，会把半影内的正确结构一起糊掉；VSM 用 SMRT 做沿光线的多次阴影贴图采样，得到带接触硬化的物理感半影。第三条"默认可用"是战略性的：UE4 时代阴影系统的复杂度来自组合爆炸（固定光源+距离场+预阴影+内嵌阴影+CSM+接触阴影），任何一条出问题都要单独排障，VSM 把它们收拢成一条路径，调参面收敛到几个 LOD 偏移和缓存开关。第四条"替代固定光源阴影技术"暗示了一个代价：固定光源不再有"静态部分免费"的优化，全部变成动态计算——这既是简化，也是性能负担的来源（后文"单独的静态缓存"一节就是在这条路上补回来的）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>从概念上讲，虚拟阴影贴图只是分辨率非常高的阴影贴图。 在目前的实现中，它们的虚拟分辨率为16k x 16k像素。 裁剪图（Clipmap）用于进一步提高定向光源的分辨率。 为了在合理内存开销下保证高性能，VSM会将阴影贴图分成128x128个区块（或页，Page）。 系统会对深度缓冲进行分析，根据需要动态地分配并渲染页，来对屏幕上的像素进行着色。 页会在不同帧之间缓存（除非因为移动对象或光源而失效），从而进一步提升性能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段是全篇最核心的机制描述，五句话各自对应一个子系统，值得拆开讲透。 第一，"虚拟 16K×16K"。这个 16K 是虚拟地址空间的尺寸，不是显存分配。真正的存储是一个物理页池（physical page pool），由 r.Shadow.Virtual.MaxPhysicalPages 控制页数上限。虚拟坐标到物理存储之间隔着一层页表（page table）做间接寻址：着色器拿到虚拟坐标后先查页表，命中则得到物理页坐标，未命中则返回"无数据"并走回退逻辑。这就是虚拟纹理系统的老结构，把 D3D 的 Tiled Resources / Vulkan 的 sparse residency 当作硬件基座。 第二，"128×128 页"。页大小是个三方权衡：页越大，单个页内的纹素浪费越多（只需要几个纹素的小阴影也得整页渲染），这就是所谓"画浪费（draw waste）"；页越小，页表越大、draw/间接查找越多、碎片化越严重。128×128 对应 16K 虚拟分辨率下 128×128 = 16384 个虚拟页槽位，同时与主流 GPU 的瓦片化资源粒度和缓存行尺寸匹配。按 16bit 深度算，一个物理页约 32KB；按 32bit 算则是 64KB——文档没给页池默认大小，这是显存预算必须自己算的账。 第三，"深度缓冲分析"（depth buffer analysis）。这是 VSM 区别于传统阴影贴图的关键一步：因为渲染是延迟的，主视图的深度已经就绪，可以在一个 compute pass 里把每个屏幕像素反投影到光源空间，求出它需要查哪个 clipmap 级/哪张面/哪个 mip 的哪个页，再用 GPU 原子操作把结果聚合成"本帧需要的页集合"。也就是说，VSM 的渲染需求是从屏幕像素反推出来的，而不是像 CSM 那样"把整个级联全画一遍再说"。代价是：不写主深度的东西（体积雾、正向半透明）无法参与这个分析，这正是后文"粗页"存在的原因。 第四，"动态分配并渲染页"。需要的页集合与上一帧驻留集合求差，得到新增页；渲染时按页掩码/剪裁把几何体切到对应物理页上，每个物理页对应一次绘制（Nanite 走软件光栅，可把所有页合并成极少量的大批次，这是 Nanite + VSM 深度联动的核心收益——非 Nanite 则退化成每光源每实例一次传统 draw call，开销高得多，这也是后文反复强调"全上 Nanite"的原因）。 第五，"页在不同帧之间缓存"。页一旦渲染就保留在池中，直到被失效（几何体或光源变化）或被逐出（池满时按近似 LRU 的策略释放长期不用的页，即"临时 page 疏汰"——本文档没有讲淘汰策略、优先级和碎片整理，这是排障时最常见的黑盒）。于是 VSM 的每帧成本 ≈ 新增页渲染 + 失效页重渲染 + 屏幕采样成本，而 CSM 是"每帧全额重绘、成本与屏幕内容无关"。这是两者本质区别：CSM 是无状态的计算，VSM 是有状态的缓存系统——也因此继承了所有缓存系统的病：失效、淘汰、一致性、以及状态被破坏时的花式损坏。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>Nanite不支持许多固定光源相关的阴影技巧，例如预阴影和逐对象（或内嵌）阴影。 虽然固定光源阴影的某些偏动态部分（例如摄像机查看器附近的级联阴影贴图）可能可行，但并不支持具有传统阴影贴图的Nanite和固定光源。 如果你想在项目中使用Nanite，你必须使用可移动光源或使用虚拟阴影贴图。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段解释了为什么 Nanite 和旧阴影体系不兼容，值得把被点名的那两个旧机制讲清楚。预阴影（preshadow）是 UE4 对"静态几何体投射到静态几何体上的阴影"的优化：固定光源的静态部分预先烘焙成一张 shadow depth，动态物体出现时只在其局部画一张小阴影图，用调制混合（modulate）叠加，从而避免每帧重绘整个级联。逐对象/内嵌阴影（per-object / inset shadow）则是为每个重要物体单独开一张小阴影贴图，保证它在远处级联被压缩时仍然有锐利阴影。两者的共同前提是"可以按图元粒度干预阴影渲染"——单独指定某个物体、单独处理它的深度、单独混合它的贡献。Nanite 的整个设计前提恰恰相反：它把所有可见几何体合并成极少数 GPU-driven 大批次，由集群剔除和软件光栅一次性画完，不存在"为某个物体单独开一张贴图、单独一次混合"的插手空间；而且 Nanite 的深度写入发生在自己的光栅化路径里，传统阴影贴图要求的逐图元深度语义对不上。所以结论很干脆：要 Nanite 就必须走 VSM（或可移动光源的全动态路径）。从工程角度这其实是个净收益——UE4 那套固定光源阴影的组合逻辑（什么时候用烘焙、什么时候用预阴影、什么时候回落到 CSM）是出了名的难排障，收拢成一条路径后行为可预测，只是性能下限变高了：所有阴影都变成"动态计算"，需要靠 VSM 的页缓存把成本摊回可接受的水平。</p></div>
+</article>
+<div class="sec-h"><h3>## 启用虚拟阴影贴图</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲项目级开关。值得注意的是它把 VSM 定位成"阴影贴图方法（Shadow Map Method）"这一个全局选项，意味着整个项目的阴影管线二选一，而不是按光源逐个选择。这是 VSM 与旧体系最重要的操作差异：旧体系里你可以让点光源用传统立方体阴影、定向光用 CSM、某个特定光源用光追，混着来；VSM 时代这种混合仍然存在但被大幅压缩（剩下的混合点在"不受支持的几何体回落传统路径"和"光追优先"两处），因此排障时要先确认全局方法设置，再看回落情况。另外要注意的是，方法切换不只是渲染路径的改变，它会连带影响资产验证、光照构建、可伸缩性系统和材质行为，建议在版本升级节点一次性完成迁移并全场景回归，而不是长期保持传统/VSM 双轨并行。</p></div>
+<article class="para">
+<div class="zh"><p>在项目设置（Project Settings）的<strong>引擎（Engine）&gt;渲染（Rendering）</strong>的<strong>阴影（Shadows）</strong>分段中，你可以设置项目支持的<strong>阴影贴图方法（Shadow Map Method）</strong>，可以是<strong>虚拟阴影贴图（Virtual Shadow Maps）</strong>，也可以是旧版虚幻引擎中的传统<strong>阴影贴图（Shadow Maps）</strong>。 现有项目需要使用项目设置或控制台变量<code>r.Shadow.Virtual.Enable</code>来设置。 新项目默认使用虚拟阴影贴图。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>r.Shadow.Virtual.Enable 默认值随模板版本变化：新项目（5.x 模板）默认 1，从旧版本升级的项目保持 0。这里有个很容易踩的坑：VSM 打开后不只是"阴影变好了"，它会连带改变光照合成的行为——固定光源的直接光照从"烘焙+动态混合"变成"全动态"，甚至影响光照需要重建的判定（文档最后的"贴图检查警告"一节专门讲了这个）。因此在已有项目上开启 VSM 属于"视觉验收需要全场景重跑"级别的改动，不是开关一按就完事。另外 Shadow Map Method 是项目级设置，没有官方支持的逐光源回退开关；如果某个特定场景想临时对比传统阴影，只能整体切方法或用 r.Shadow.Virtual.Enable 的缩放性组（scalability group）控制。</p></div>
+</article>
+<div class="sec-h"><h3>### 启用VSM后，现有阴影渲染方法会发生什么情况？</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节是"迁移清单"，信息密度很高：它逐一说明了旧阴影机制的去向。理解这张清单的关键是分清三类命运——被替换（预阴影、内嵌阴影、CSM、固定光源 2D 距离场阴影贴图）、保留但配合（距离场阴影用于远距离非 Nanite、光追阴影优先级更高、接触阴影仍有小用途）、完全不受影响（全烘焙静态光源）。后文的所有"什么时候还能用老技术"的答案，基本都能从这三类里推出来。这一节也是排查“阴影为什么和旧版本长得不一样”时最该先查的地方：绝大多数迁移期的视觉差异，都能在这三类命运（被替换 / 保留配合 / 不受影响）里找到归属，先归类再深入，能省掉大量无效排查。</p></div>
+<article class="para">
+<div class="zh"><p>启用VSM后，它们将替换虚幻引擎中的各种现有阴影方法，包括：</p>
+<ul><li>固定预计算阴影，包括2D距离场和阴影因子"阴影贴图"</li><li>预阴影</li><li>逐对象/内嵌阴影</li><li>级联阴影贴图（CSM）</li><li>基于局部光源的可移动动态阴影</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这张清单实际上是对 UE4 阴影系统复杂度的一次清算。逐条看："固定预计算阴影"包括两张东西——2D 距离场（把静态几何体投影成一张深度/距离图，用于固定光源的动态物体阴影）和阴影因子贴图（shadow factor map，直接烘焙"阴影强度"而非深度），两者都是靠"静态部分不变"换性能的；"预阴影"解决静态物体投到静态物体上的阴影；"内嵌阴影"保证重要物体的局部锐利；"CSM"是定向光的主体；"局部光源动态阴影"是点光/聚光的传统路径。五条合起来就是：VSM 之前的阴影系统是一个按"光源移动性 × 几何体静态性 × 距离"三维切分的补丁矩阵，每个补丁有自己的烘焙缓存、自己的混合规则、自己的失效条件。VSM 把它替换成"一个虚拟化的、全动态的、带页缓存的统一系统"。这个替换的直接后果是行为可预测（同一套规则作用于一切光源），间接后果是没有了"静态部分免费"的捷径，所有优化都要靠页缓存和失效管理来实现——这也是文档后半部分花大量篇幅讲缓存失效管理的原因。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>用于静态光源的全烘焙阴影（Fully baked shadows）仍会像以前一样运作（假设不使用Lumen）。 它们的贡献只体现在烘焙光照贴图中，不会参与运行时的光照计算。 固定光源会采纳来自烘焙光照贴图的间接漫反射信息，但启用VSM后，它们的直接光照与阴影会动态计算生成（与可移动光源相同）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段划清了一条重要边界：VSM 只接管"直接光照的可见性"，不碰烘焙进光照贴图的间接光。静态光源（Static Mobility + Static light）完全不受影响，其阴影已经烤死在光照贴图里；固定光源（Stationary）则被切成两半——间接漫反射继续用烘焙光照贴图，直接光照和阴影变成每帧动态计算。这个切分有一个容易被忽视的性能后果：固定光源的"动态直接光"意味着每个固定光源都要参与页分配、页渲染和 SMRT 采样，也就是说项目里几十盏不动的固定路灯，成本上和几十盏可移动光源几乎是同级的，唯一的差异是它们的页可以一直命中缓存（只要不动）。所以 VSM 时代的性能优化思路从"让光变成静态"变成了"让光不动"——静止的可移动光源和固定光源在 VSM 缓存意义上是一样便宜的，这在后面"移动光源"一节会再次体现（moving LOD bias 只对"正在移动"的光源生效）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>距离场阴影 不会被替换，可以与定向光源的虚拟阴影贴图配合使用。 距离场阴影替代超出可移动光源动态阴影距离的非Nanite几何体，该距离使用级联阴影贴图属性<strong>动态阴影距离可移动光源（Dynamic Shadow Distance Movable Light）</strong>在定向光源上设置。 使用距离场阴影非常有用，可以降低复杂场景中的运行时开销，例如有大量 非Nanite植被 的场景。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段描述的是一个"内外两段式"混合：动态阴影距离以内走 VSM 全分辨率，超出该距离的非 Nanite 几何体回落到距离场阴影（用 mesh distance field 做的解析可见性，只有低频轮廓、没有细节）。官方没明说的机制细节有三点值得补。其一，这个距离切换对 Nanite 几何体不生效——Nanite 无论多远都画进 VSM（下一段解释），所以当场景几乎全是 Nanite 时，距离场阴影的存在感会大大降低，其价值主要残留在"大量非 Nanite 植被"这类场景。其二，这个切换是有缝的：距离场阴影只有物体级别的粗轮廓，与 VSM 的细节阴影在交界处会出现清晰度跳变，传统 CSM 时代大家用距离淡出（fade distance）掩盖，VSM 下同样需要设置 Dynamic Shadow Distance 的过渡。其三，"动态阴影距离可移动光源"这个名字沿用了 CSM 属性名，容易让人误以为它只管 CSM，实际上是定向光阴影系统共用的距离分界参数。另外注意，UE5 里还有 mesh distance field 的另一层用途是 Lumen 的软件光追，这里只是把它当作阴影可见性的廉价来源。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>无论距离如何，Nanite几何体始终渲染到虚拟阴影贴图，因为这是性能最高的选项，可提供最高质量。 你可以使用控制台变量 <code>r.Shadow.Virtual.UseFarShadowCulling 0</code>使非Nanite几何体的行为方式与Nanite相同。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"Nanite 无论多远都画进 VSM"这句话反直觉，需要解释为什么反而更便宜。直觉上，远处的物体不需要高细节阴影，应该剔除；但 VSM 的页分配是按屏幕像素需求来的——远处的物体在屏幕上只占几个像素，投影到阴影贴图上也只落进低 mip/远级 clipmap 的少数几个页，所以"Nanite 画到很远"实际写的纹素数量是跟着屏幕分辨率走的，不会爆炸。而如果按传统做法在 CPU 上按距离剔除，就会出现"远处物体突然没了影子"的跳变。换句话说，VSM 把"细节按需"的责任从 CPU 剔除转移到了页分配上，因此距离剔除变得多余甚至有害。r.Shadow.Virtual.UseFarShadowCulling 默认 1，只对非 Nanite 几何体做远距离剔除（因为它们的渲染成本模型完全不同：每个实例一次 draw call，无 LOD 粒度控制时开销随实例数线性增长）；设为 0 会让非 Nanite 也一直画，通常是为了消除远处阴影跳变而牺牲性能的选择。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>局部光源（点光源和聚光光源）不受影响，为这些光源选择的距离场阴影仍将覆盖当前的阴影贴图方法。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是迁移清单里的一个例外条款：点光/聚光如果勾了"Use Distance Field Shadows"，会整体优先用距离场，VSM 不参与。这样做的实际意义有限——局部光源的距离场阴影在 UE4 里主要用于"低成本的大范围点光"，精度很低；VSM 的局部光阴影质量远高于它。因此在 VSM 项目里，除非是刻意追求性能的远景装饰光，一般应该把局部光源的距离场阴影选项关掉，让 VSM 接管，否则会出现"同一盏灯近处细节阴影、远处粗糙轮廓"或干脆整体粗糙的意外表现。官方文档在这里只给了一句"不受影响"，没有给出推荐值，这是个含糊点：实际项目里这个开关与 VSM 的交互行为（是否逐光源覆盖、是否有距离过渡）需要自行验证。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>由于VSM自身的高分辨率和高精度属性，不再需要通过屏幕空间接触阴影（Contact Shadow）功能（通过接触阴影长度（Contact Shadow Length）属性控制）来获得锐利的接触阴影效果。 在为某些对象（不会渲染进阴影贴图的对象）渲染低开销阴影时，它仍然有用，但其他情况下不推荐用它，因为它的精度要比VSM创建的阴影低。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>接触阴影（contact shadow）是 UE4 时代的补丁：在屏幕空间沿光线方向做一次射线步进，解决"传统阴影贴图分辨率不够、物体贴着地面却没有接触阴影"的观感问题。它精度低（屏幕空间、只在小半径内）、有明显漏光，但在 2K CSM 时代是必需品。VSM 把纹素密度提到接近 1:1 之后，接触阴影的职责大部分被吸收了。文档说它"仍然有用"的场景很具体：不会渲染进阴影贴图的对象——典型是粒子系统、部分特效网格、某些不投阴影的半透明体，这些在 VSM 页里根本没有数据，屏幕空间射线是唯一能拾取它们的手段。这里的隐性知识是：接触阴影是纯屏幕空间的，它不会在物体背后产生投影，只会在"接收者表面附近的近距离"产生暗斑，所以它永远只能作为补丁而不是方案。实践建议是：默认把 Contact Shadow Length 设为 0（关闭），只在确实需要为特效补一层假接触暗部时局部开启，因为它的边缘质量和时间稳定性都比 VSM 差。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>光线追踪阴影的优先级仍然高于VSM，因为它们通常提供最高质量的解决方案。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>一句话说明了阴影可见性的优先级链：硬件光追阴影 &gt; VSM &gt; 距离场阴影/接触阴影。这个优先级是逐光源、逐像素级别的短路逻辑：如果某光源开了光追阴影，VSM 根本不为它分配页。值得对照的是两者的能力差异：硬件光追能找到"第二层遮挡物"（比如树枝后面的叶子还能继续挡光）、能处理任意次弹射的遮挡、半影不依赖阴影贴图分辨率；VSM 只存第一层深度（见后文"非一致半影"一节），只能近似。所以在 Epic 的推荐路径里，VSM 是"全场景默认"，光追阴影是"少量关键光源的升级项"，而两者在 SMRT 上有一个有趣的收敛——SMRT 本质上是"用阴影贴图代替场景做光线步进"，可以看作 VSM 向光追阴影靠拢的中间形态；反过来 Lumen 的硬件光追路径则把两者统一到同一个 BVH 上。文档没有讲的是：光追阴影与 VSM 在同一画面混用时，半影风格（SMRT 的柔和度控制）与光追的半影（基于光源半径的随机采样）并不一致，混合使用会有观感差异，需要美术统一调光源参数。</p></div>
+</article>
+<div class="sec-h"><h3>## 基于阴影贴图光线追踪的柔和阴影</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节介绍 SMRT（Shadow Map Ray Tracing），是 VSM 相对传统阴影贴图最大的质量卖点，也是性能上最需要调的部分。核心要建立一个成本模型：SMRT 的开销 = 每像素光线数 × 每光线采样数 × 每像素光源数，三者都是可以独立调的变量，而传统的 PCF 只有一个"核宽度"变量。理解 SMRT 的正确方式是：它把"阴影过滤"从"在阴影贴图上做一个空间滤波核"改成了"沿光线在阴影贴图上做一次深度步进"，从而同时得到半影随距离展开（柔和）和接触点硬化（锐利）两种行为，而不需要 PCSS 那样的独立遮挡物搜索（blocker search）步骤。</p></div>
+<article class="para">
+<div class="zh"><p><strong>阴影贴图光线追踪（Shadow Map Ray Tracing, SMRT）</strong>是一种结合虚拟阴影贴图的采样算法，能生成更为真实的柔和阴影和接触硬阴影。 对象投射的远处阴影比近处阴影拥有更柔和的效果。 例如，下图中的网格体很高，其阴影会投射到很远的距离。 靠近底部的阴影比远处的阴影更清晰锐利。 示例使用了阴影贴图光线追踪后的点光源阴影效果，近处为接触硬阴影，远处为柔和阴影。 传统的百分比渐近筛选（Percentage-Closer Filtering，PCF）法会导致过度模糊，并降低高分辨率几何体和阴影的视觉影响。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>先把物理原理摆正：真实世界里半影的宽度由光源的有限尺寸决定，遮挡物离接收者越远、离光源越近，半影就越宽；贴着接触点的位置半影趋近于零，所以阴影是硬的。这就是"接触硬化（contact hardening）"。传统 PCF 用一个固定大小的核去模糊阴影贴图，无论遮挡物离接收者远近都用同样的模糊宽度，结果要么整体过硬、要么整体过糊，而且糊掉的不只是边缘，还有阴影内部的细节结构（这正是文中说"降低高分辨率几何体和阴影的视觉影响"的意思——你辛苦做的高模细节、Nanite 的细小凹凸，全被一个大核卷掉了）。学术界对这个问题有一整条演化线：PCSS（2005/2006）先做一次遮挡物搜索估计距离再自适应调整核宽；方差阴影贴图（VSM，2006）和矩阴影贴图（2015）把深度分布预计算成可滤波的统计量，直接卷积得到软阴影。SMRT 属于另一条思路：不预处理统计量，而是在采样时"沿光线走一遍阴影贴图"，用多条光线 + 每条光线上的多点采样来近似同样的物理效果。它的优势是与 VSM 的页结构天然配合（只需要随机位置的单点深度查询，不需要可滤波的深度表示），代价是采样次数 = 光线数 × 每光线采样数，直接写进性能账单。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>| 百分比渐近筛选均匀模糊 | 重要细节丢失 | | --- | --- | | 阴影贴图光线追踪生成 | 带接触硬化的真实柔和阴影 |</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是一张 2×2 对比截图的标题（图丢了），左列是 PCF 的效果、右列是 SMRT 的效果，上排标注问题、下排标注优点。丢失的这张图本该说明的关键差异是：PCF 的模糊是"各向同性、与几何无关"的，会把半影内的细小遮挡结构（栅栏缝隙、叶片间隙）卷成一片灰；SMRT 的半影是"从接触点向外逐渐展开"的，缝隙结构在近处保留、在远处才被柔化。这正是文档想要传达的核心价值：不是"更模糊的阴影"，而是"正确的半影空间分布"。如果需要在没有图的情况下验证自己项目的 SMRT 是否工作正常，最直观的检查是找一根竖直的柱子在平地上投影：SMRT 下阴影根部应几乎无半影、末端半影明显变宽；如果整条阴影半影一致宽，说明 SMRT 被关了（光线数设 0）或者光源的 Source Radius/Source Angle 是 0。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>SMRT算法的工作原理是向光源发射一定数量的光线，但它并不像传统的光线追踪一样计算与几何体的相交点，而是沿光线投射一定数量的取样，并针对虚拟阴影贴图进行测试，以实现柔和阴影和接触硬化效果。 阴影光线的分布是基于光源的，可使用局部光源的<strong>源半径（Source Radius）</strong>或定向光源的<strong>源角度（Source Angle）</strong>控制。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把算法流程展开讲清楚。对每个需要阴影的着色像素：（1）在以"像素→光源"方向为轴、以源半径/源角度决定的锥角内，随机发射 N 条阴影光线（锥角越大，模拟的光源面积越大，半影越宽）；（2）每条光线不是去和场景几何求交，而是沿光线按一定步长取 M 个点，把每个点投影回阴影贴图做一次深度比较——比缓存深度近（即该点在遮挡物后面）则记为被遮挡；（3）某条光线一旦命中遮挡物就可以提前终止，否则走到光线末端；（4）所有光线的遮挡比例就是该像素的阴影值。接触硬化为什么会自然出现：接收者附近的采样点彼此靠得很近，它们在阴影贴图上的投影几乎落在同一位置，深度比较结果高度一致，因此要么全遮挡要么全通过，边缘锐利；沿光线走远后，采样点在阴影贴图上的投影间距被光源锥角放大，深度差异越来越大，于是部分光线被挡、部分通过，形成半影。这个机制也解释了它的成本模型：N×M 次阴影贴图查询，且每次查询都是随机位置（非相干）的页表查找——这正是后面"半影瑕疵"一节的根源：虚拟化优化的是局部相干的点查询，而 SMRT 需要的是沿光线的长距离随机遍历，两者天然冲突。对照硬件光追阴影：它的步进对象是 BVH（有加速结构，能跳过空区域），而 SMRT 的步进对象是阴影贴图（无加速结构，只能均匀采样），所以 SMRT 的光线数不可能开得很高，必然有噪点，需要靠时域滤波压制。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>| 局部光源半径 | 定向光源角度 | | --- | --- | 局部光源默认没有光源半径，相比之下，定向光源初始拥有低光源角度。 只要设置的值比较合适，SMRT就能生成带有接触硬化效果的实时柔和阴影。下图就展示了源半径为10的点光源阴影效果。 源半径为0的点光源 ／ 源半径为10的点光源（此处为两张截图）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段交代了 SMRT 的物理输入参数。Source Radius（局部光）和 Source Angle（定向光，单位是度，表示太阳的角直径）本质上描述的是"光源在遮挡物看来有多大"，半影宽度 ≈ 遮挡物到接收者的距离 × 光源角尺寸。两个默认值的选择很有讲究：局部光默认半径 0，因为游戏里的点光大多被当作理想点光源使用，一旦给了半径，所有阴影都会出现半影并带来噪点与性能成本，所以交给美术按需开启；定向光默认给一个小角度（约 0.5°~5°），因为太阳本身就有 0.53° 的角直径，而且室外场景的大面积地面阴影确实需要一点柔和度才不显得假。丢失的对比图想说明的是：半径 0 → 全场景硬阴影、无半影也无噪点；半径 10 → 明显柔和但伴随采样噪点。实践中的调法是：先用较小的半径/角度确认 SMRT 工作正常，再逐步加大到观感满意；如果加大后噪点难以接受，优先降低半径而不是提高光线数，因为半径减小的同时半影变窄，对采样数的需求也自然下降，这是文档后面"性能"一节明确建议的顺序（先降半径/角度，再降光线与采样数）。</p></div>
+</article>
+<div class="sec-h"><h3>### 控制半影品质</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节给出 SMRT 的四个可调维度：每像素光线数（RayCount，决定噪点量）、每光线采样数（SamplesPerRay，决定最大柔和度和步进精度）、以及两个限制参数（最大光线偏离角、光线长度缩放）。它们与"阴影（Shadows）"可伸缩性档位联动。理解这几个参数的关键是分清各自的失效模式：光线数不足 → 时域噪点（闪烁）；采样数不足 → 半影提前截断（不够柔）；限制参数过紧 → 半影被硬性剪短；限制参数过松 → 半影畸变 + 性能下降。调参时应先明确要解决的是哪种问题，再动对应变量。实践上建议把这一节的参数当作一个整体来调：先定光源的物理输入（源半径/源角度），再定每像素成本（光线数），最后定单条光线的精度（采样数）。顺序颠倒常会出现“参数都调过了，噪点反而更多”的结果，因为物理输入决定了半影宽度，而半影宽度决定了后两个参数需要多少才算够。</p></div>
+<article class="para">
+<div class="zh"><p>局部光源和定向光源照射下的半影的柔和度和品质可通过控制台变量来设置。 它们包含自身的可扩展性设置，通常适用于大多数场景。 半影中的噪点受所用光线数量的影响，当<strong>阴影（Shadows）</strong>的可伸缩性设置为<strong>超高（Epic）</strong>时，局部光源和定向光源默认使用8条光线。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"8 条光线"这个默认值是一个重要的标定：在硬件光追阴影里，8 条光线/像素的噪点是不可接受的，必须配降噪器；SMRT 能用 8 条光线得到相对干净的半影，原因是每条光线上还叠加了多个采样点，等效于把 N 条光线变成了 N 组相关的估计，方差被部分抵消；另外 SMRT 的结果还会进入引擎的时域滤波管线进一步稳定。即便如此，8 条光线下的半影内部仍有可见的颗粒感，尤其在低纹理细节的表面上。这里有个文档没说的隐患：SMRT 的噪点会经过 Lumen/Tonemap 后处理链，在暗部可能被放大或被时域累积拖出拖影，因此"阴影可伸缩性"档位的调整要和抗锯齿/时域超分（TSR/TAA）一起评估，而不是孤立地看阴影静态截图。Epic 档位以下的档位会降低光线数（Medium/Low 更少），这也是低配机上"阴影看起来脏"的主要原因之一。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>你可以使用控制台变量<code>r.Shadow.Virtual.SMRT.RayCountLocal</code>和<code>r.Shadow.Virtual.SMRT.RayCountDirectional</code>来调整光线数量。 光线数量较少时，半影中显示可见噪点。 关联控制台变量设置为0时，则禁用SMRT并采用单一取样硬阴影。 定向光源角度：5.0 ／ SMRT光线数量：1 定向光源角度：5.0 ／ SMRT光线数量：7（默认值）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>RayCount 设 0 是一个有用的"诊断开关"：它彻底关闭 SMRT，退化为单次采样硬阴影，等于回到了"高分辨率传统阴影贴图"的行为。排障时可以用它快速二分问题——如果硬阴影正常而软阴影出问题（噪点、漏光、页缺失瑕疵），问题在 SMRT 采样层；如果硬阴影本身就错（棋盘格、边缘锯齿、阴影缺失），问题在页分配/页池层。两张丢失的对比图展示的是光线数 1 与 7 的差别：1 条光线时半影呈现明显的随机条纹状噪声（每像素只有一条随机方向的估计），7 条时噪声被平均到接近均匀的柔和过渡。需要注意的是光线数对性能是线性关系，但对噪点是方差下降（按 1/√N 缩短），所以把光线数从 8 加到 16 只能减少约 30% 的噪声，却让成本翻倍——这也是为什么官方建议优先降半径/角度而不是加光线。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>此外，你可以为局部光源和定向光源设置每条光线路径的阴影取样数量，以控制最大柔和度。 阴影贴图取样数量越低，渲染开销越低，但是会限制光源阴影所能实现的半影柔和度。 要实现比<strong>阴影（Shadow）</strong>可伸缩性设置更精细的控制，控制台变量<code>r.Shadow.Virtual.SMRT.SamplesPerRayLocal</code>和<code>r.Shadow.Virtual.SMRT.SamplesPerRayDirectional</code>可以调整使用的样本数量。 取样数量在4和8之间时效果较好。 <strong>图中的定向光源角度为5.0时，拖动滑块即可查看阴影贴图取样数量分别为0、2和8（默认值）时的效果。</strong></p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>SamplesPerRay 决定的是"光线在阴影贴图上走多细"。物理上限是：采样点必须足够密，才能捕捉到光线穿过的遮挡物边缘——如果步长大于遮挡物在阴影贴图上的尺寸，光线会直接"跳过"细小遮挡物，产生漏光。因此这个参数实际决定了"SMRT 能看到的遮挡物最小尺寸"和"半影能达到的最大宽度"（光线长度 × 步长）。"取样数量在 4 和 8 之间效果较好"是官方给出的甜点区：低于 4，远处柔和度明显不足、细小遮挡漏光；高于 8，成本线性上升而观感提升有限（因为限制因素变成了光线数不足的噪声）。丢失的滑块图对比的是 0/2/8：0 等价于禁用 SMRT，2 是明显偏硬且可能有漏光的状态。与 RayCount 一样，这个变量也有 Local/Directional 两个独立版本，意味着可以给定向光（太阳，通常半影范围大）更高的采样数，而给局部光（数量多、屏幕占比小）较低值——这是多光源场景最划算的优化方向之一。</p></div>
+</article>
+<div class="sec-h"><h3>### 阴影贴图光线追踪的局限性</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节列举 SMRT 的四类固有问题：半影大小限制、非一致半影、半影瑕疵（页缺失漏光）。它们有一个共同根源——SMRT 的"场景"只是一张单层深度图，而且这张深度图还是虚拟化、按需分配的。前者决定了所有与多层遮挡相关的近似误差（漏光、半影被压窄），后者决定了所有与"随机位置查询"相关的工程问题（未映射页、屏幕边缘退化）。理解了这个共同根源，四个小节就不需要死记，遇到问题能自己推断原因。四类局限对应四种修法：半影过大 → 压光源半径/角度；非一致半影 → 无直接修法，只能控规模；页缺失漏光 → 控制半影尺寸与屏幕占比。这些修法几乎全部指向同一个操作——把半影压在合理范围，这是贯穿整个小节的统一结论，也解释了为什么 Epic 反复强调不要把软阴影放大到占满屏幕。</p></div>
+<article class="para">
+<div class="zh"><p>SMRT的品质在默认设置下通常很不错，但假如使用来自单一阴影贴图投射的数据（而非针对真实几何体进行测试），就可能存在一些固有的局限性。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这句总起句值得展开，因为它点出了 VSM + SMRT 路线与硬件光追阴影的本质分野。硬件光追拿到的"场景"是完整的加速结构（BVH），包含所有三角形，所以光线可以正确地穿过第一层遮挡、命中第二层、第三层；VSM 的"场景"是每个虚拟页里保存的最靠近光源的那一层深度，其他层的信息在渲染页时就被丢弃了。于是所有"需要看穿第一层"的问题都变成了近似问题。这不仅是质量差异，也是架构上的必然选择：如果要在阴影贴图里存多层深度（类似 deep shadow map / A-buffer），页的显存和带宽成本会成倍上升，而且多层结构与"单页 128×128、按需渲染"的简化模型冲突。作为对照，学术界为此发展过方差阴影贴图、矩阴影贴图（可滤波统计量能表达"多层深度分布"的近似）、以及不透明度/透射阴影贴图，它们都能在单张贴图里编码部分多层信息；Epic 选择了另一条路——保持最简单的单层深度，把复杂度转移到采样时的启发式修正（下一节的 gap-filling）。这是工程上非常典型的取舍：用运行时启发式换存储带宽。</p></div>
+</article>
+<div class="sec-h"><h3>### 半影大小限制</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这个小节讲的是 SMRT 的几何约束：光线是从接收者像素出发向光源锥体发射的，如果半影被允许张得很大，光线方向会严重偏离"像素→光源"的直线方向，此时阴影贴图上的采样点已经不代表"这条光线真正会经过的空间路径"，误差随偏离角增大。所以引擎给光线的发散程度加了硬性上限。这里的“限制”是引擎级的保护措施而不是功能缺陷：没有它，大半径光源在近景下会把采样预算直接烧光，同时产生明显的方向性畸变；理解成“引擎替你兜住了极端参数的后果”更接近设计意图。实际项目中应把这两个变量当作“安全阀”而不是“调参入口”，确实需要大半影时，优先考虑给该光源切硬件光追阴影。</p></div>
+<article class="para">
+<div class="zh"><p>局部光源和定向光源的阴影半影会被限制，以避免取样偏离光线原点，与沿光线自身的理想测试相比，其会变得越来越"弯曲"。 使用合理的局部光源半径和定向光源角度值可避免出现过于极端的结果，从而限制光线以各种方式发散的范围。 太大的值可能会影响性能，并在摄像机接近它们时导致阴影半影出现视觉扭曲。 局部光源和定向光源可以使用控制台变量<code>r.Shadow.Virtual.SMRT.MaxRayAngleFromLight</code>和<code>r.Shadow.Virtual.SMRT.RayLengthScaleDirectional</code>来放宽或收紧限制范围。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段的机制可以这样理解：SMRT 的每条光线本质上是"从接收者像素指向光源面上一个随机点"的线段，光源半径/角度越大，这些线段彼此张开的角度越大。当张开角超过某个程度后，两个问题同时出现。一是精度问题：光线在空间中弯离了"像素到光源"的理想直线，它对应的阴影贴图采样点与真实几何路径的偏差随距离放大，产生半影形状畸变（比如半影不对称、方向性拉丝）。二是性能问题：半影越宽，光线需要走得越远、采样越多才能覆盖，同时被"软阴影"覆盖的屏幕像素比例上升，投影通道的总工作量上升。摄像机靠近光源时问题加剧，因为同样的光源角尺寸在屏幕上覆盖的像素更多、半影的屏幕投影更大。MaxRayAngleFromLight 限制的是光线偏离光源方向的最大角度，RayLengthScaleDirectional 只作用于定向光、控制光线能延伸多长（直接决定定向光半影的最大世界空间宽度）。这两个参数文档没有给默认值的具体数值，但它们是处理"太阳角度调大后地面阴影出现奇怪条纹/扭曲"的第一调解点；收紧它们会立刻改善畸变，代价是半影变小。实践上的建议仍然是：把 Source Angle 控制在合理范围（室外 1°~5°，个别风格化场景可到 10°），而不是靠放宽引擎限制来支撑极端值。</p></div>
+</article>
+<div class="sec-h"><h3>### 非一致半影</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这是 SMRT 局限里最"硬核"的一节，讲的是单层深度图带来的漏光问题及其修正手段带来的副作用。理解它需要先建立一个画面：遮挡物在阴影贴图里只留下"最靠光源的表面"的深度，它身后的东西全被丢弃；当一条 SMRT 光线穿过遮挡物继续前进时，理论上它应该能打到更远的遮挡物，但在阴影贴图里那个位置只有第一层深度，光线会被判定为"始终被挡"，于是本该半亮的区域变成了全黑——这就是光照泄漏（此处指方向相反的泄漏：该亮的地方被挡黑了）。文档用"光照泄漏瑕疵"统称这类错误。它是单层深度表示的必然代价，也是判断“是否该为个别光源切到硬件光追阴影”的主要依据：当一个场景必须有大半影、且遮挡关系复杂（多层植被、栅栏、书架）时，SMRT 的近似误差会明显超过改用光追阴影的成本收益点。</p></div>
+<article class="para">
+<div class="zh"><p>由于虚拟阴影贴图仅保存首个深度层，Naive迭代会忽略与首个深度层背后的所有遮挡物的相交，因此在遮挡物重叠的位置可能发生多种光照泄漏瑕疵。 这类光照泄漏问题可以通过间隙填充方法（gap-filling heuristic）来解决；此算法是基于在遮挡点之前看到的深度，来推断首个遮挡物后面的深度。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这段的机制补全。问题场景：一丛树叶，前面一片叶子、后面一片叶子，两片之间有缝隙。真实情况是光线可以穿过缝隙打到后面的叶子和地面，所以阴影应该是有透光斑点的半透明感。但 VSM 的阴影页里只记录了最前面那片叶子的深度（后面的在光栅化时被深度测试丢弃），于是从缝隙穿过的光线在阴影贴图上的投影仍然落在"前叶深度"附近，被判定为遮挡——阴影变得比真实更实，缝隙里的漏光消失，整体偏黑。gap-filling 启发式的做法是：在光线步进过程中，记录"进入遮挡前最后看到的未遮挡深度"（也就是光线走到遮挡物边缘之前的自由深度区间），用这个信息推断遮挡物"应该有多厚"，从而在步进越过一定深度后重新判定为未遮挡。这等价于给每个遮挡物估计一个虚拟厚度，让光线能够"穿透"它。这是纯启发式：没有真实几何信息支撑，厚度的估计来自相邻的可见深度和光线几何，所以对规则形状（球、柱、平面）效果尚可，对复杂的植被多层结构会有误差。对照其他方案：硬件光追天然无此问题；矩阴影贴图/透射阴影贴图通过在贴图里存多层统计（透射率）也能部分解决，代价是页显存和滤波复杂度；Deep Shadow Map（用于毛发/体积的老技术）存完整的多层深度-透射函数，最准确但完全不适合实时页化结构。Epic 选启发式的理由很清楚：VSM 页是 128×128 的深度瓦片，必须保持最便宜的结构才能支撑 16K 虚拟分辨率和页缓存。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>这能够很好地解决光照泄漏问题，但会导致表面上与光线平行的半影缩小。 目前还没有直接的方法来抵消这种影响，只能将半影大小保持在合理范围内。 非一致半影阴影的例子。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段讲的是修正带来的副作用，也是这一节真正想提醒的点。gap-filling 让光线能穿透估计厚度的遮挡物，这个"估计厚度"是与方向有关的：当光线几乎与接收者表面平行（掠射）时，光线在阴影贴图上的投影会被强烈压缩，"自由深度区间"变得很短，启发式会更早把光线判回未遮挡，于是半影被压窄；当光线接近垂直于表面时则不受影响。结果就是同一光源、同一物体，阴影半影的宽度在不同表面上不一致——文档称之为"非一致半影"（anisotropic/non-uniform penumbra），具体表现为：与光线方向平行的表面上阴影边缘偏硬，垂直方向上正常。丢失的例图展示的应该是一根柱子在地面上和竖直墙面上的阴影对比。官方的态度很明确：没有直接修法，只能控制半影规模（即压低 Source Radius/Angle）。这里值得补充一个实践判断：这个瑕疵在室外太阳光（角度小）下几乎不可见，在室内大半径局部光下、且场景里有大量重叠遮挡（书架、栅栏、植被）时最明显。如果项目确实需要大半影，更可靠的路线是给关键光源开硬件光追阴影，而不是硬调 SMRT 参数。</p></div>
+</article>
+<div class="sec-h"><h3>### 半影瑕疵</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲的是虚拟化结构本身造成的伪影，与 SMRT 的物理近似无关，是 VSM 最"工程味"的一类问题。核心概念是"未映射页（unmapped page）"：VSM 的页是按需分配的，只有"被某个屏幕像素需要"的页才存在于物理池中；SMRT 沿光线随机步进时，采样点可能落到从来没有被任何像素需要过的虚拟地址上——那里根本没有数据。这一节与“非一致半影”的区别要分清：前者是深度表示不完备（算法近似误差），后者是页分配不完备（工程边界问题）；两者的视觉表现都是漏光与噪点，但成因和缓解手段不同，混在一起排查会走弯路。</p></div>
+<article class="para">
+<div class="zh"><p>默认情况下，虚拟阴影贴图只能保证光线原点（接收者像素）周围的取样将被呈现。 当算法遍历光线时，它可能会遇到未映射的页（阴影数据不存在）。 我们使用了多种技巧来减少这种影响，包括稍微扩展页映射，并在迭代过程中进行各类回退（fallback）。 但即便如此，由于页缺失而产生的瑕疵也会偶尔发生，在屏幕边缘放大软半影时尤其如此。 这些瑕疵将表现为阴影区域的噪点类型的光泄漏。 和VSM的其他局限性一样，通过将阴影半影尺寸保持在合理范围内，避免将阴影放大到覆盖屏幕的大部分区域的程度，就能避免此类问题。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把机制讲透需要回到页分配逻辑。屏幕上每个着色像素都告诉系统"我需要哪个虚拟页"；系统把这些需求聚合成"本帧需要的页集合"，并额外做一些扩张（dilation，把需要的页范围向外扩一圈，作为 padding）。但扩张是有限度的：如果为每条可能的 SMRT 光线路径都预分配页，等于要把光源锥体扫过的全部虚拟空间都驻留，那虚拟化的意义就没了。所以沿光线走到预分配范围之外时，只能走回退逻辑（把该采样当作未遮挡或沿用上一次的判定），这在统计上引入了偏差。什么时候最容易暴露：屏幕边缘（那里的像素深度分析覆盖最少、页刚好处在分配边界）、半影很大（光线走得远，越容易出界）、以及被强烈放大的软阴影（一个小的遮挡物在屏幕上投出巨大半影，光线要跨越大量虚拟页）。表现为"阴影区域里噪点状的光泄漏"——注意这是结构性漏光，加光线数也压不干净，因为每条光线都会在相同位置遇到同样的缺失页。缓解手段与文档说的一致：控制半影尺寸、避免让阴影放大到占满屏幕。这里有个文档没提的深层原因值得点出：虚拟化的优化目标是"局部相干的点查询"，它假设相邻像素需要相邻纹素；SMRT 打破了这个假设（每条光线在虚拟空间里跳来跳去），所以页的 padding 策略只能按统计近似。这是所有虚拟化资源遇到随机采样时的通病——虚拟纹理在高 mipmap 偏移下也有类似问题。对照硬件光追阴影：BVH 是全局驻留的，不存在"页缺失"，只有精度与成本问题。</p></div>
+</article>
+<div class="sec-h"><h3>## 定向光源的裁剪图</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲定向光（太阳）如何在虚拟 16K 的基础上继续扩展覆盖范围。核心思想来自几何 clipmap（几何裁剪层级，最早用于地形 LOD）：以摄像机为中心嵌套一组范围逐级加倍的方形区域，每级用同样数量的纹素去覆盖，从而实现"近处极密、远处极疏"的对数级密度分布。这与 CSM 的本质区别在于：CSM 的每级是一个独立的完整阴影贴图，级与级之间要处理"分割缝"和"级间混合"；clipmap 的各级在虚拟地址空间里是规则对齐的网格，没有任意朝向的视锥拟合，因此没有分割缝问题、没有抖动，代价是覆盖效率略低（方形区域会覆盖到视野外）。VSM 把 clipmap 和页分配结合起来：每个 clipmap 级是一张独立的 16K 虚拟贴图，每级内部再按需分配页，于是"远处级别几乎全是空页"时几乎不花钱。</p></div>
+<article class="para">
+<div class="zh"><p>单张虚拟阴影贴图无法提供足够的分辨率来覆盖大型区域。 定向光源使用裁剪图（Clipmap）结构来扩展摄像机周围的范围，每个裁剪图级别都有其单独的16K VSM。 每个裁剪图级别的分辨率相同，但覆盖半径是前一个的两倍。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>为什么单张 16K 不够？算一下：假设覆盖 1 公里见方的区域，16K 纹素的密度是 16384/100000cm ≈ 0.16 纹素/厘米，也就是每纹素 6 厘米——在 1080p、90° 视场下，近处一个屏幕像素对应的世界尺寸可能只有 0.5 厘米，阴影纹素密度差了一个数量级，阴影必然糊。clipmap 用对数分级解决：每级覆盖半径翻倍、纹素尺寸也翻倍，于是密度按 2 的幂次衰减，近处级别可以有极高的密度（最内级 64cm 范围用 16K 纹素 = 每纹素 0.04 厘米，远超屏幕需要），远处级别虽然稀疏但屏幕上的占比也小，看起来仍然"够用"。这与纹理 mipmap 的思路同源，也解释了为什么后面局部光源（点光/聚光）用"单张贴图 + mip 链"就够了——局部光的影响范围是有限的锥体/球体，不需要无限延伸，而太阳要照到视距尽头，必须有 clipmap 的对数延展。另外值得指出：每级一张 16K VSM 意味着页分配、页表、缓存失效都要按级独立做，这也是后面非 Nanite 实例剔除统计里"单个静态网格体为每个定向光生成 17 个实例（17 个裁剪图级别）"的来源——同一物体要在每一级各剔除一次、各画一次。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>| 定向光源裁剪图的可视化效果 | 虚拟阴影贴图页的可视化效果 | | --- | --- |</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>丢失的两张图分别是 clipmap 层级可视化和页可视化。clipmap 可视化通常用不同颜色标出各层级覆盖的世界空间范围（嵌套的方形环带），能直观看到"最内级很小、最外级巨大"的对数结构；页可视化则把已分配的物理页标亮，能看到页如何集中在摄像机附近和物体轮廓周围。这两种可视化正是排查定向光阴影问题的第一工具：如果远处阴影突然消失，先看 clipmap 级是否分配（LastLevel 是否太小）；如果近处阴影糊，看最内级覆盖范围（FirstLevel）和 ResolutionLodBias。文档里对应的是 View Modes → Virtual Shadow Map → Clipmap/Mip Level 和 Virtual Page 两个模式，不需要命令行就能打开。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>默认情况下，裁剪图的6级到22级是分配过的虚拟阴影贴图页表。 这意味着默认设置下，细节丰富的裁剪图覆盖了摄像机位置周围64厘米（2^6厘米）的范围；范围最广的裁剪图覆盖了40公里（2^22厘米）的范围。 假如虚拟裁剪图级别中没有内容，其开销将十分微小，因此这些默认设置能很好地覆盖摄像机附近拥有较高分辨率的大型场景。 使用控制台变量r.Shadow.Virtual.Clipmap.FirstLevel和<code>r.Shadow.Virtual.Clipmap.LastLevel</code>可调整第一级和最后一级。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这组数字要算清楚。级别 n 的覆盖半径是 2^n 厘米：级 6 = 64cm，级 10 = 10.24m，级 16 = 655m，级 22 = 41.9km。所以"6 到 22"意味着：最内级只覆盖摄像机周围 1.28m 见方（±64cm）的区域，用满 16K 纹素，密度约每纹素 0.008cm（80 微米）；最外级覆盖 84km 见方，密度约每纹素 5 米。注意这是一个以 2 为底的对数密度分布，相邻级别密度差 4 倍（面积 4 倍、纹素数相同）。为什么最内级要做得这么小？因为它承载了"贴脸细节"的阴影密度，这是 Nanite 场景真正需要的。为什么最外级要 40 公里？为了支撑世界分区/大世界场景里远山的阴影，同时也是为了和距离场阴影交接前的范围衔接。成本方面，"没有内容的级开销微小"是页分配的功劳：远级里只有少量物体投进少量页，其余全是空槽位。但如果远处有大量非 Nanite 植被，情况就完全不同——它们每一级都要做 CPU 剔除和 draw call（文档后面统计里的 17 个实例/定向光就是这么来的），这正是粗页和非 Nanite 优化章节反复强调的痛点。调整 FirstLevel/LastLevel 是很常用的优化：室内项目可以把 FirstLevel 调大（减少级数、减少每实例剔除次数）、LastLevel 调小（减少空级）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>分配到给定像素的分辨率是一个关于裁剪图原点（摄像机位置）距离的函数。 这可以按阴影可伸缩性使用控制台命令<code>r.Shadow.Virtual.ResolutionLodBiasDirectional</code>来设置。 假如值为0，则将根据摄像机的透视投射来选择所需的分辨率。 当阴影投射到的表面与光线方向几乎平行时，仍然可能出现投影锯齿（projective aliasing），即使在高分辨率下也是如此，但可以通过调整分辨率来部分减轻这种情况。 就像纹理中的Mip偏移一样，将该值降低-1会使阴影的分辨率加倍，但也会带来相应的性能变化。 Epic阴影可扩展性设置为默认值-1.5为许多场景提供了合理的平衡。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段讲的是"该选哪个 mip 级/多细的页"的决策逻辑，等价于纹理的 LOD 选择。机制：对每个屏幕像素，把它在深度缓冲里的位置反投影成世界空间一个小面片，再投影到光源空间，量出它覆盖多少阴影纹素，据此选出"刚好够用"的 mip/clipmap 级。bias 为 0 表示严格按这个几何需求选；bias 为 -1.5 表示强制选更细 1.5 个 mip 的页（分辨率 ×2^1.5 ≈ 2.8 倍）。为什么 Epic 档默认 -1.5 而不是 0？因为"刚好够用"在两种情况下会翻车：一是阴影贴图上没有屏幕像素那么高的时间相关性，下一帧同一像素可能需要相邻纹素，刚好够用会导致时间锯齿；二是文中提到的投影锯齿（projective aliasing）——当受光表面与光线方向几乎平行（掠射面）时，一个屏幕像素在光源空间里被拉成一条长条，需要极多的阴影纹素才能正确采样，任何有限的分辨率都会出现条纹状阴影锯齿（也就是老问题 shadow acne 的几何根源）。这是阴影贴图的固有缺陷，不是 VSM 能消除的，只能靠提高分辨率、加法线偏差、或避免极端掠射角来缓解。另一个值得注意的点：clipmap 的"原点是摄像机"意味着分辨率分布跟着摄像机走，摄像机移动时页会在级间迁移（这也是缓存失效的一个来源，虽然页级别迁移通常比失效便宜）。</p></div>
+</article>
+<div class="sec-h"><h3>## 局部光源</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>局部光源（点光/聚光）不用 clipmap，而是用 mip 链在单张（或六张面）16K 虚拟贴图内部做密度分级。这一节的实践重点有两个：一是大范围局部光会耗尽虚拟分辨率（16K 是硬上限，不像定向光可以用 clipmap 继续扩展），二是分辨率控制是全局的 LOD 偏移，没有逐光源开关（官方承认这是待补的功能）。理解局部光的页成本要记住一个数字：点光是六张面，每张面 8 个 mip 级，一个静态网格体最多为它生成 48 个剔除实例。这一节的参数面最窄——只有全局 LOD bias，没有逐光源控制——因此局部光的阴影质量问题基本只能靠改光源自身的影响半径、拆分或删减光源来解决；这也是它在多光源场景里最先成为瓶颈的结构性原因。</p></div>
+<article class="para">
+<div class="zh"><p>聚光光源使用单个16k VSM和一个Mip链来处理阴影的细节等级，而非使用裁剪图。 类似地，点光源使用的立方体贴图中，每张面都是16k VSM。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段给出了局部光源的页组织方式。聚光光是一张 16K 虚拟贴图对应其锥形视域，内部用 mip 链分级——注意这与纹理 mipmap 不同：这里的 mip 不是预计算的缩小版本，而是同一虚拟地址空间里不同粒度的页层级，每个 mip 级可以独立分配页（因为同一个 mip 链上不同区域需要的密度不同）。点光是立方体贴图，六张面各自独立一张 16K VSM——这意味着点光的虚拟空间总量是聚光的六倍，页池压力也大得多；文档后面的多光源性能问题主要就出在这里：一个场景里几十盏点光，每盏六面，即便每面只分配少数页，页池和页表压力也是聚光场景的好几倍。与传统阴影贴图对比：UE4 时代点光立方体贴图通常是 512~2048 每面，VSM 直接给到 16K 每面，密度提升 8~32 倍，这就是"局部光源显著提高了分辨率"的来源。但也要注意 16K 每面对应的虚拟页槽数是 16384/128 = 128×128 = 16384 个槽/面，六面近 10 万个槽位，页表本身的存储和管理开销不可忽略——这是文档完全没讲的账。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>与传统阴影贴图相比，局部光源显著提高了分辨率。 对于非常大的局部光源来说，虚拟分辨率有可能会耗尽。在这些情况下，应注意尽可能使用定向光源。 被聚光源照亮的场景 ／ 聚光源的虚拟阴影贴图页</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"虚拟分辨率耗尽"值得算一笔账说明白。一张 16K 贴图覆盖聚光的锥形范围：如果聚光的角度是 90°、影响半径 50 米，那么贴图边缘对应的纹素尺寸约等于 (2×tan45°×5000cm)/16384 ≈ 0.6cm，还够用；但如果影响半径是 500 米，纹素尺寸变成 6cm，阴影就会糊——而且你没有任何办法再细分（定向光可以用 clipmap 继续分级，局部光不行）。所以官方建议"大范围改用定向光"实际上是在说：局部光的分辨率上限是硬的，16K 就是天花板，超过这个范围质量必然下降。丢失的页可视化图能看到页集中在锥形中心（近处物体密集处）。补充一个实践细节：影响半径（Attenuation Radius）设置过大是最常见的"局部光阴影变糊"原因，很多项目把半径拖到几百米去照亮整片区域，这在 VSM 下会直接撑爆虚拟分辨率，正确做法是拆成多个小范围光源或改用其他手段。另外，多盏大半径点光的页需求叠加会迅速吃掉页池（见"物理页池溢出"一节），这是性能与质量的双重风险点。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>通过将屏幕像素的大小投射到阴影贴图空间中，挑选合适的MIP等级。 与定向光源一样，你可以利用阴影可伸缩性设置或使用控制台变量<code>r.Shadow.Virtual.ResolutionLodBiasLocal</code>来调整分辨率。 目前还无法针对单个光源的分辨率进行控制，但可能会在未来版本中添加。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>mip 选择机制与定向光一致：把屏幕像素的覆盖范围投影到光源空间，量出需要多少纹素，选出最合适的 mip 级；ResolutionLodBiasLocal 做全局偏移（负值更细）。这里有个值得展开的细节：局部光的 mip 选择还隐含了"光源到物体的距离"因素——同一个物体，靠近光源时在阴影贴图上占更多纹素，会选更细的 mip；远离时选更粗的。因此一盏灯照亮的近处物体阴影锐利、远处物体阴影粗糙，这是符合视觉预期的正确行为，不是 bug。"目前无法针对单个光源控制分辨率"是官方明确承认的功能缺口，实践中只能靠两个全局变量（Local 和 LocalMoving）+ 阴影可伸缩性档位来间接控制。绕过办法是利用引擎的既有机制：用 Light 的 Max Draw Distance / Distance fade 控制远处光源完全不投阴影，或者用光源的可伸缩性内部分级（某些光源标记为不重要的低配行为）。社区里常见的需求是"主角跟随光要极锐利、环境光可以糊"，目前的答案是把主光设为可移动并接受 moving bias，或者拆分到不同可伸缩性组。</p></div>
+</article>
+<div class="sec-h"><h3>## 移动光源</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节很短，但点出了 VSM 缓存体系里最重要的性能分界：光源是否在动。静止的光源其页可以一直命中缓存，成本趋近于只做屏幕采样；正在移动的光源每一帧都要把全部页作废重画，成本等于"全额渲染"。引擎的处理方式是给"正在移动"的光源单独一个更粗的 LOD 偏移，等它停下来再平滑过渡回细分辨率——这是一个典型的自适应质量策略，用瞬态质量换稳态性能。它还隐含一条内容侧规则：能不动的光源就不要动。动画化的光源（闪烁、摇摆、移动的火把与光环）在 VSM 下是页缓存的天敌，应优先用材质动画或光照函数模拟观感，而不是真的去移动光源本身。</p></div>
+<article class="para">
+<div class="zh"><p>固定光源大部分会被缓存，因此可以使用比移动光源高得多的分辨率。 考虑到固定和移动光源之间存在这种差异，可移动光源应该采用不同于固定光源的LOD偏差。 当光源停止移动时，会逐渐过渡到原始偏差。 你可以使用以下伸缩性控制台变量，来控制移动光源的LOD偏差：</p>
+<ul><li><code>r.Shadow.Virtual.ResolutionLodBiasLocalMoving</code></li><li><code>r.Shadow.Virtual.ResolutionLodBiasDirectionalMoving</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这两个变量的语义要读准：它们不是"可移动光源的永久 bias"，而是"光源处于运动状态时的临时 bias"。也就是说一盏 Movable 光源只要不动，用的是普通（非 Moving）bias，页被缓存、阴影锐利；一旦开始移动/旋转，切换到 Moving bias（更粗），页全部失效重画但画得更便宜；光源停止后，bias 平滑过渡回普通值，同时页重新以细分辨率重建。这套机制回答了一个老问题："VSM 时代还要不要用 Stationary？"答案基本是不需要了——Stationary 的唯一优势（静态部分可缓存）已经被 VSM 的页缓存覆盖，而它带来的烘焙依赖、光照重建、混合复杂度都还在。直接全用 Movable 光源 + 让它们不动，就能获得同样的缓存收益，还省掉了固定光源的种种限制（这也和前文"Nanite 不支持固定光源传统阴影"的结论一致）。实践中的陷阱是：昼夜循环这种缓慢连续变化的定向光会让 Moving bias 一直生效（因为每帧都在动），阴影始终处于"粗 + 全失效"状态——文档在"缓存"一节给了对应的解法（把太阳方向量化，让页能撑若干帧）。另外，Moving bias 的过渡是插值还是跳变、过渡时长是多少，文档没说，官方未暴露参数，属于黑盒。</p></div>
+</article>
+<div class="sec-h"><h3>## 半透明表面</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节处理一个容易被忽略的问题：延迟渲染里，不透明表面的阴影是在光照 pass 里用深度缓冲做页查询的；但半透明表面不写主深度（或者写了也不可靠），它们的阴影需要单独的路径。VSM 通过给被照亮的半透明体提供专门的阴影采样质量选项来解决，代价是全局开关、影响所有半透明体。它也是少数“开了就全局生效”的质量开关之一，在性能敏感平台上应与可伸缩性系统联动，由画质档位决定是否启用，而不是当作默认画质的一部分硬编码在项目设置里。若必须启用，建议先在目标最低配平台上测一次全屏半透明场景的开销，再决定是否放进正式画质档位，避免上线后才发现代价不可控。</p></div>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图支持对带有Substrate和旧版路径的半透明表面的进行高质量的阴影滤波处理。 这是全局选择加入功能，你可以使用控制台变量<code>r.Shadow.Virtual.TranslucentQuality</code>启用。 此控制台变量可控制被照亮的半透明表面的阴影质量。 这应用于所有半透明表面，并会带来很大的性能影响。 <code>r.Shadow.Virtual.TranslucentQuality</code>的设置：</p>
+<ul><li>大于1的值：为被照亮的半透明表面使用高质量阴影。</li><li>0：（默认值）为被照亮的半透明表面使用常规质量阴影。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>机制上，半透明体接收阴影有两条路：一是正向渲染的半透明（在材质着色时直接采样阴影），二是延迟路径里对半透明做单独的光照处理。VSM 对两条路都能供数据，但采样成本不同——半透明体往往覆盖大量屏幕像素且是"被看到"的表面，用高质量滤波（相当于更完整的 SMRT 或更大核）时开销会明显上升，所以默认只给常规质量。这里值得点出文档没说的几件事。其一，这个变量是全局的，无法按材质或按光源控制，一个全屏的雨滴粒子或烟雾就可能把整个开关的代价顶到不可接受，实践中要先测开销再开。其二，半透明体投影阴影（作为遮挡物）和接收阴影（作为接收者）是两回事——本节讲的是接收；半透明体作为遮挡物投出的阴影取决于材质是否勾选 Cast Shadow 以及材质的阴影不透明度处理，VSM 对半透明遮挡物的支持有限（通常按不透明处理或不投），这点文档完全没讲，需要自行测试。其三，提到 Substrate（UE5 的新材质系统）说明这条路径同时覆盖新旧材质栈，如果项目还在用旧版 Lit 材质也能受益。体积雾的情况不同，它走的是下一节"粗页"的路径，不是这个变量。</p></div>
+</article>
+<div class="sec-h"><h3>## 粗页</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>粗页（Coarse Pages）是 VSM 架构里一个专门为"非常规采样者"设计的兜底机制，也是这套系统里最容易被忽视却最容易出性能问题的地方。核心矛盾是：VSM 的页分配依赖屏幕深度分析，这只对"延迟路径里写了主深度的像素"有效；而体积雾、正向半透明这类效果需要在任意位置采样阴影，它们不参与深度分析。粗页用"保证全空间至少有低分辨率数据"的方式解决，代价是可能把不划算的几何体拖进渲染。粗页是 VSM 里唯一一处“无条件渲染”的路径，因此也是唯一可能让 VSM 在空场景或极简场景下仍产生可观开销的地方。排查“场景很简单但阴影还是贵”时，应第一个看粗页（尤其是非 Nanite 是否被画进了粗页）。</p></div>
+<article class="para">
+<div class="zh"><p>深度缓冲分析是用于识别哪些页需要渲染的主要方法。 不过，有些系统需要在更加任意的位置上对阴影进行取样，例如 体积雾 和正向渲染的半透明度。 大多数系统只需要低分辨率阴影数据（这些数据通过其他数据结构的筛选和模糊）。 为应对这类情况，我们会标记<strong>粗页（Coarse Pages）</strong>来确保整个域中至少有低分辨率阴影数据可用于取样。 局部光源会标记根MIP页，定向光源会以各种低细节等级标记一系列页，从而生成一些粗略的裁剪图。 某些场景下，粗页可能会产生性能问题。 对于非Nanite动态几何体而言尤其如此，因为它们能在大型空间区域上有效地渲染低分辨率阴影，这可能造成绘制调用（draw-call）瓶颈。 建议使用控制台变量<code>r.Shadow.Virtual.NonNanite.IncludeInCoarsePages 0</code>尝试禁止非Nanite对象渲染到粗页。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这节讲透需要理解粗页的三个关键属性。第一，粗页是"无条件驻留"的：局部光直接把根 mip（最低分辨率、覆盖整个光源域）的所有页标记为需要，定向光把若干低级 clipmap 整层标记，因此不管屏幕上有没有像素需要它，这些页都在页池里并且被渲染。这打破了"按需分配"的原则，是有意为之的兜底。第二，粗页的消费者是"不写主深度的采样者"：体积雾在光源空间里做体积步进，采样位置是体积中的任意点，没有对应的主视图像素；正向半透明在材质着色时采样，也不参与延迟的深度分析；Lumen 的某些查询、以及粒子系统的光照也可能走这条路。这些系统对阴影精度的要求本来就低（它们自己还要做滤波/模糊），所以低分辨率粗页足够。第三，成本模型不对称：粗页分辨率低、纹素少，但覆盖的空间范围巨大（比如定向光的整层粗 clipmap 覆盖几公里），于是任何"在很大空间里都存在"的几何体都会被画进这些页。非 Nanite 动态几何体（植被、蒙皮角色、WPO 草）在这里最危险：它们不能走 Nanite 的合并软件光栅，每个实例一次 draw call，画到粗页时没有任何 LOD 收益（粗页本来就分辨率低，但 draw call 数量不变），于是出现"阴影深度通道里 draw call 爆炸但产出只是几张低分辨率贴图"的怪象——这就是文档说的"绘制调用瓶颈"。因此 IncludeInCoarsePages 0 是植被密集场景的首选优化，代价是这些物体不再影响体积雾等效果，视觉上可能出现"草地上没有雾阴影"的差异，需要美术确认可接受。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>许多场景（尤其是主要由Nanite几何体组成的场景）不需要非Nanite对象将阴影投射到体积雾和类似物体上。 禁用此功能可以显著提高性能。 如果不需要，可以使用<code>r.Shadow.Virtual.MarkCoarsePagesLocal</code>关闭局部光源粗页。 可以使用<code>r.Shadow.Virtual.MarkCoarsePagesDirectional</code>关闭定向光源粗页，或者可以使用<code>r.Shadow.Virtual.FirstCoarseLevel</code>和<code>r.Shadow.Virtual.LastCoarseLevel</code>修改标记粗页的裁剪图级别范围。 在未来的版本中，我们将提供更好的解决方案，例如提前根据局部页标记其中一些效果，而不是使用目前过于保守的粗页。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这一段给了粗页的完整控制面：可以整体关闭（Local/Directional 两个开关），也可以只调级别范围（FirstCoarseLevel/LastCoarseLevel）。理解"过于保守"这句话很重要：当前实现是无条件把整个域的低分辨率层都驻留，而实际上体积雾只存在于摄像机附近的有限体积内、正向半透明只覆盖屏幕上的一小块。理想的方案是"反向分析"——从这些效果的采样需求出发反推需要哪些粗页（比如体积雾只标记雾体积在光源空间覆盖的页）。官方明确说这在计划中。在此之前，实践上的调法是：如果场景没有体积雾也没有正向半透明需要阴影（很多纯 Nanite 室内项目就是如此），直接关掉粗页可以拿到一块稳定的性能收益；如果有雾但只在中近距离，把 LastCoarseLevel 收小，减少被无谓标记的级别。还有一个值得自查的点：粗页的开销往往不体现在"阴影深度"的毫秒数上，而是体现在 draw call 数量和 CPU 提交开销上（尤其非 Nanite 实例多时），所以 GPU profiler 看不出来，需要结合 stat unit / RHI 线程耗时和后面的非 Nanite 实例统计一起判断——这是文档没明说但排障时极重要的经验。</p></div>
+</article>
+<div class="sec-h"><h3>## 可视化</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>可视化一节列出了四个视图模式和一组控制台命令。这一节的价值在于把"看不见的内部状态"变成可观察的：哪些页在用、哪些页被缓存、哪些页刚刚失效、用了哪一级 clipmap。对性能优化来说，Cached Page 可视化和失效边界可视化是排查"阴影为什么这么贵"的起点；对质量排障来说，Shadow Mask 和 Clipmap/Mip Level 能快速定位分辨率不足或页缺失的位置。这里给出的四个视图模式加一组控制台命令，构成了 VSM 的完整观测面。与后面“缓存”和“GPU 分析”两节配合，基本能覆盖从质量问题到性能问题的全部定位路径，是本篇操作性最强的工具清单。</p></div>
+<article class="para">
+<div class="zh"><p>使用<strong>视图模式（View Modes）</strong>下拉菜单并选择<strong>虚拟阴影贴图（Virtual Shadow Map）</strong>，即可从关卡视口访问虚拟阴影贴图的可视化选项。 可视化选项包括： | 可视化名称 | 说明 | | --- | --- | | <strong>阴影遮罩（Shadow Mask）</strong> | 着色使用的最终阴影遮罩。 | | <strong>裁剪图/Mip级别（Clipmap/Mip Level）</strong> | 选择的裁剪图（用于定向光源）或Mip（用于局部光源）级别。 | | <strong>虚拟页（Virtual Page）</strong> | 虚拟页地址的可视化。 | | <strong>缓存页（Cached Page）</strong> | 缓存页为绿色，未缓存页为红色。 仅缓存静态页（动态未缓存）的页为蓝色。 | 默认情况下，虚拟阴影贴图可视化显示定向光源的结果。 在<strong>大纲视图（Outliner）</strong>中选择光源，即可查看该光源的可视化效果。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>逐一补充文档没说的用法细节。Shadow Mask 显示的是最终参与光照合成的阴影值，用它能看到 SMRT 的半影、噪点和漏光——判断"阴影脏"是采样问题还是数据问题的第一手材料。Clipmap/Mip Level 用颜色标出每个像素取的是哪一级，健康场景应呈现以摄像机为中心的同心环状分布；如果近处就跳到高级别（粗级），说明 LOD bias 过粗或分辨率不足。Virtual Page 显示虚拟页地址，通常呈现为规则的色块网格，用于确认页对齐和页边界。Cached Page 是性能优化的核心工具，颜色语义要记牢：绿 = 页在缓存里、本帧没重画（好）；红 = 本帧新渲染或失效重画（贵）；蓝 = 只缓存了静态部分（开了单独静态缓存时，动态部分仍要重画）。健康的静止摄像机场景应该几乎全绿，只在屏幕边缘和物体运动轨迹处有少量红。另外注意两点：一是可视化默认只显示定向光，看局部光必须在大纲里选中光源；二是这些可视化本身有开销（文档后面专门强调），做性能对比前一定要关掉。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>你还可以使用控制台启用可视化（发布版本除外），这对于分析和调试实时游戏很有用。 如果在编辑器中设置了其中任一项，它们将重载通过编辑器的用户界面进行的模式选择。 | 可视化名称 | 说明 | | --- | --- | | <code>r.Shadow.Virtual.Visualize [mode]</code> | 当通过关卡视口（Level Viewport）或控制台命令将视图模式可视化设置为虚拟阴影贴图（Virtual Shadow Map）时，此命令指定要显示的通道。 使用下面的名称代替"[模式]"来启用该可视化。 <strong>Cache</strong>和<strong>vpage</strong>是用于可视化的两个常用选择，<strong>none</strong>可禁用VSM可视化。 * mask * mip * vpage * cache * raycount * clipmapvirtual | | <code>ShowFlag.VisualizeVirtualShadowMap</code> | 指定可视化模式时，启用虚拟阴影贴图可视化。 | | <code>r.Shadow.Virtual.Visualize.Layout</code> | 选择虚拟阴影贴图可视化的布局。 * <strong>0</strong>表示全屏 * <strong>1</strong>表示缩略图 * <strong>2</strong>表示分屏 | | <code>r.Shadow.Virtual.Visualize.DumpLightNames</code> | 将带有虚拟阴影贴图的当前光源列表输出到控制台。 在某些构建/运行时配置中，光源的名称可能与它们在编辑器的名称不同。 | | <code>r.Shadow.Virtual.Visualize.LightName [light name]</code> | 按名称指定光源，接受部分或全部匹配。 要使用此控制台变量清除选择的光源，请指定一个不匹配任何名称的光源名称。 可以使用双引号（"）将其重置回未指定光源。 |</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这组命令的价值在于"在运行的游戏里看内部状态"，这在打包版本（非 Shipping）里也能用，是排查"为什么这台机器上阴影不对"的关键工具。raycount 模式显示每个像素实际执行了多少条 SMRT 光线，能直观看到哪些区域在花最多的采样成本（通常是大半影覆盖区）；clipmapvirtual 显示 clipmap 的虚拟结构。Layout 的分屏模式（2）可以同时看场景和可视化，调试时比全屏切换高效。DumpLightNames 这个命令揭示了一个重要的坑：运行时的光源名可能与编辑器里的不同（引擎会自动命名或重命名），所以按名字指定光源前必须先 dump 一份实际列表，否则 LightName 匹配不上会一直看不到目标光源。LightName 支持部分匹配，这一点配合 dump 输出可以快速定位同类光源（比如所有名字带 Street 的路灯）。这组命令都没有对应的 UI，属于"引擎内部工具外露"的典型，文档里没有给出在 Shipping 构建中不可用的具体原因（可视化代码被编译剔除），但意味着线上问题只能靠日志和统计复现。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>启用可视化模式对虚拟阴影贴图的性能有较小但明显的影响。 请务必在进行性能分析之前禁用可视化。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这条提醒值得单独强调，因为 VSM 的可视化和普通调试绘制不同——它会改变渲染路径本身（额外通道、额外数据读回、甚至可能改变页的映射与调度），从而污染计时。实践中常见的错误是：开着 Cached Page 可视化对比"开关某个优化"的耗时，结果红色页数量本身因为可视化通道的存在而变化，得出错误结论。正确的性能分析流程是：先用可视化定位问题区域 → 关闭所有可视化 → 用 stat gpu / GPU profiler 计时 → 如需再观察，重新打开可视化但只做定性判断。另外，r.ShaderPrintEnable（后面统计用到的文本绘制）也有类似干扰，分析时要一起关。这个提醒也是全篇少数明确写到"测量方法学"的地方，说明 Epic 自己在内部排障时也吃过这个亏。</p></div>
+</article>
+<div class="sec-h"><h3>## 缓存</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节是全篇技术含金量最高的部分，讲的是 VSM 作为缓存系统的一切：为什么缓存是命脉、失效从哪里来、怎么观察和治理。理解这一节需要一个观念转变：VSM 的每帧成本主要由"失效量"决定，而不是场景复杂度；同样的场景，一个不断触发明失效的系统可以让 VSM 比传统 CSM 更贵，一个零失效的系统则能让它便宜到接近"只做屏幕采样"。因此 VSM 项目的性能工作，很大程度上就是失效管理工作。把它当作一章来读：前半讲机制（缓存命中与揭示的区别、四类失效来源、昼夜循环的量化建议），后半讲治理（可视化、失效边界、移动性规范、分离缓存）。这是全篇对项目方最有实操价值的一章，建议团队内当作失效治理手册使用。</p></div>
+<article class="para">
+<div class="zh"><p>复用上一帧的阴影贴图页是保证虚拟阴影贴图高效运作的关键，这点在复杂场景中尤其如此。 缓存会默认启用，但可以使用控制台变量<code>r.Shadow.Virtual.Cache 0</code>禁用，以便进行调试。 即使启用缓存，虚拟阴影贴图也会遵守Nanite剔除距离。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段有两个信息点值得展开。第一，r.Shadow.Virtual.Cache 0 是一个重要的诊断开关：关掉缓存后所有页每帧重画，等于退化为"无缓存的按需渲染阴影贴图"。它的用途是二分问题——如果关缓存后画面正常但帧率暴跌，说明缓存机制本身在工作、问题在失效过多；如果关缓存后画面出现异常（阴影闪烁、缺失），说明问题在页的生成/分配而不是缓存。第二，"仍然遵守 Nanite 剔除距离"这句话藏着一致性陷阱：缓存页里的数据是过去某一帧渲染的，如果 Nanite 因为剔除距离把远处物体从主场景里剔除了，但它的阴影页还在缓存里，就会出现"物体看不见了但影子还在"的错位。引擎的处理是让 VSM 也遵守同样的剔除距离（即超出距离的页失效或不再使用），但边界处的时间一致性没有保证——物体跨过剔除距离时阴影会突然出现/消失。这是一个典型的"缓存一致性 vs 简化实现"的取舍，文档一句带过，实践中表现为远景阴影的轻微跳动，通常被当作可接受。补充一个文档没讲的数据点：缓存的本质是把每帧成本摊到多帧，代价是显存（页池）和一致性管理开销，所以 VSM 的显存占用对场景动态性敏感度不高、但对光源数量和覆盖面积敏感度很高。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>由于页仅针对屏幕上的像素进行渲染，因此因解除遮挡的移动而改变摄像机可视性，可以显示需要渲染的新页。 一般来说，只要摄像机运动比较顺畅，这种情况不会成为新页的主要来源。 另一方面，你应该注意物体附近的快速移动、大面积遮挡解除和摄像机镜头切换。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这里区分了 VSM 里两种"新页"来源，两者的成本和治理方式完全不同。第一种是"揭示（reveal）"：摄像机移动导致之前被遮挡或视野外的区域进入视野，这些像素需要的页从未被分配过，必须新渲染。它的特点是与场景无关、与摄像机运动直接相关，总量 ≈ 新增可见像素投影出的页数。平稳的摄像机移动下这个量很小（新区域通常只占屏幕一小条），但快速平移、瞬移、镜头切换会让整屏页都变成新的，造成一帧或几帧的尖峰——这就是文档提醒的"镜头切换"。缓解手段是引擎内部的页分配平滑/分帧（文档后面提到未来的"每帧更新预算"），以及在设计上避免频繁硬切。第二种是"失效（invalidation）"：页已经在缓存里，但因为几何体或光源变化而作废，必须重画。它才是复杂场景里的主要成本来源（下一段展开）。把这两者分开看非常重要，因为排查手段不同：揭示问题看 Cached Page 可视化里屏幕边缘的红环，失效问题看失效边界可视化。文档把它们放在同一段里讲，容易让人混淆，实际调优时要分开量化。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在大多数场景中，最大的工作来源来自因场景几何体变化而需要重新绘制的阴影贴图页。 缓存页失效的常见来源包括：</p>
+<ul><li>任何光源移动或旋转都会使该光源的所有缓存页失效</li><li>投射移动阴影的几何体，或者在场景中添加或删除的几何体，将使从光源角度与其边界框重叠的所有页失效。</li><li>这可能包括对象，比如基元组件上的蓝图设置属性，这些属性会触发渲染状态失效，尽管它实际上并没有移动。</li><li>使用可能修改网格体位置的材质的几何体，例如世界位置偏移（WPO）或像素深度偏移（PDO）</li></ul>
+<p>在有缓慢移动光源或改变昼夜时间的移动定向光源的情况下，VSM页实际上根本不会缓存。 在像昼夜时间改变这样的情况下，建议对变化进行略微的量化，以便允许缓存页在一定数量的帧内存在，因为方向上的微小差异不明显。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这份失效来源清单是 VSM 性能治理的核心操作手册，逐条拆开看。第一条，光源动 → 全部页作废：因为阴影贴图是从光源视角渲染的，光源动了等于整张图换了坐标系，没有任何页还有效。这就是前面 Moving LOD bias 存在的原因。第二条，几何体动 → 与其包围盒重叠的页作废：注意判定用的是"光源视角下的包围盒投影"，所以一个物体的失效影响范围不只是它自己的阴影，而是它包围盒在光源空间扫过的所有页——一个包围盒很大的物体（哪怕可见部分很小）会造成大片失效。这就是后面强调"边界要紧"的原因。第三条最阴险：蓝图里改属性触发渲染状态失效，哪怕物体没动也会让页作废。典型例子是每帧更新材质参数、开关可见性、改 Transform 的小抖动。这类失效在 profiler 里表现为"没有任何东西在动，但 Invalidated 页数很高"，是 VSM 排障里最费时间的一类，需要用失效边界可视化一个一个揪出来。第四条，WPO/PDO 材质：顶点位置在 GPU 上由材质计算，CPU 无法知道它动了没有，只能按"每帧都可能动"处理，全部失效。植被、草、旗帜、绳索都属于此类——这就是后面专门有一节讲"非 Nanite 变形和植被"的原因。最后关于昼夜循环的建议非常实用：把太阳的角度变化量化（比如每 N 帧更新一次，或者每 0.1° 更新一次），可以让页在两次更新之间保持缓存命中，把连续失效变成离散的批量失效，配合"每帧预算"摊平尖峰。这个技巧文档只给了思路，没有给实现接口（目前需要自己在游戏逻辑里控制太阳更新频率）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在未来的版本中，添加优先系统和每帧更新预算应该会改进缓存，以便更精细地控制渲染阴影的开销。 例如，在需要更新的页过多的情况下，允许暂时降低阴影分辨率。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段预告的是 VSM 缓存体系的两个缺口：优先级和预算。理解它们为什么重要，需要看当前实现的隐含行为——失效的页大概率为当帧立即重画，没有排队、没有优先级、也没有"本帧最多画多少页"的上限。后果是失效量是不可控的尖峰源：一个角色跑过一片草丛，或者一个大的 WPO 效果触发，可能让几百个页同时失效，这一帧的阴影深度通道直接爆掉，产生掉帧。有了预算机制后，引擎可以把多余的失效页推迟到后续帧处理，或者临时用更低的 mip 渲染，把尖峰摊平——这正是现代引擎处理 GPU 负载波动的标准思路（类似虚拟纹理的" residency 预算"和 Nanite 的"节点预算"）。文档说"允许暂时降低阴影分辨率"，这实际上意味着 VSM 未来会支持页级别的临时 LOD 降级，也就是缓存里既存高分辨率版本又存低分辨率版本，或者干脆把失效页临时当作空页处理再逐步补齐。对项目方的启示是：现在就要在自己的系统里做失效预算管理（比如控制同时动画的角色数量、限制 WPO 效果的作用范围、量化缓慢变化的光源），不要指望引擎兜底——这是官方明确说"未来才会有"的能力。</p></div>
+</article>
+<div class="sec-h"><h3>### 管理缓存失效</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节是操作手册：如何发现失效、如何定位元凶、如何用引擎工具消灭它。四个工具按使用顺序排列：Cached Page 可视化（看到问题区域）→ DrawInvalidatingBounds（看到是谁造成的）→ 仅绘制导致失效的几何体（隔离元凶）→ 图元的阴影缓存失效行为覆盖（规则级修复）。这套流程与虚拟纹理的驻留调试方法论几乎同构，说明 Epic 内部就是把 VSM 当作虚拟资源系统来维护的。这一节的方法论比任何单个变量都重要：先观察（不改行为的可视化）→ 再隔离（改变渲染方式以缩小嫌疑）→ 后确认（回到不改行为的模式验证）。任何一步顺序颠倒都可能因观察者效应得出错误结论，这套流程同样适用于其他引擎子系统的调试。</p></div>
+<article class="para">
+<div class="zh"><p>减少缓存失效的最好方法是首先发现失效，然后找到并减少导致它们的原因。 缓存页可视化 是一个很好的起点。 缓存页可视化 在此可视化中，完全缓存的页以<strong>绿色</strong>显示。 新页或失效页以<strong>红色</strong>显示。 当你移动摄像机时，你应该会在屏幕边缘、裁剪图边界和不被遮挡的几何体附近看到红色小环。 使用静态摄像机，大多数新页将来自缓存失效。 如果启用了单独的静态缓存（见下文），部分缓存（仅静态部分有效）的页将以<strong>蓝色</strong>显示。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段教你怎么读 Cached Page 可视化。关键是区分"正常红色"和"病态红色"。正常红色有三类：屏幕边缘（摄像机移动揭示的新页，一两条窄边）、clipmap 边界（摄像机移动导致页在级间迁移）、以及运动物体周围（它本来就该失效）。病态红色是：摄像机完全静止时仍然大片变红，或者红色区域随某个看似无关的操作周期性出现。判断方法文档已经给出：固定摄像机，看红色从哪来。这里补充一个实用技巧：把可视化开着，逐个隐藏场景里的 Actor（或者用仅绘制失效几何体模式），红色消失的瞬间就找到了元凶——比读日志快得多。蓝色（部分缓存）只在开了 StaticSeparate 后出现，含义是"这个页的静态部分还有效，但动态部分要重画"，它是评估单独静态缓存是否生效的直接指标：理想情况下蓝页应该很少（动态物很少），如果大量页是蓝色且伴随高 Invalidated 静态页数，说明有东西在错误地触发静态失效（见下文移动性设置的坑）。可视化里"不被遮挡的几何体附近出现红色小环"这个细节也值得注意：页是以物体为粒度做遮挡判断的，未被完全遮挡的物体周围会有页边界暴露出来。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>一旦发现问题区域，使用控制台变量<code>r.Shadow.Virtual.Cache.DrawInvalidatingBounds 1</code>打开导致失效的对象边界的可视化，通常也很有用。 检查这些对象和边界，以便确保它们确实是预期会使阴影失效的对象，并且它们的边界尽可能紧密。 由于失效对象可能在其边界内重叠的所有页都必须失效，即使是适度膨胀的边界与低光源角度相结合，也可能导致许多不必要的失效。 缓存页和失效边界可视化 可以跳过完全在Nanite对象阴影中的失效，但对于非Nanite对象则不然。 因此，确保投射大型阴影的对象（例如建筑物）使用 Nanite 就显得尤为重要。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段给了两个关键机制细节。第一，失效判定用的是包围盒在光源空间的全覆盖：引擎并不知道物体在阴影贴图里的实际轮廓，只知道包围盒，所以失效是保守的——包围盒在光源视角投影到的所有页都要作废，哪怕物体本身只遮挡其中一小部分。"适度膨胀的边界 + 低光源角度"为什么特别糟糕：太阳角度低时，一个包围盒在光源空间的投影会被拉得极长（阴影被拖远），一两米的包围盒膨胀可能造成几十米的页失效带。因此给静态网格体做"干净的包围盒"（去掉无用的原点偏移、避免把不可见的碰撞体算进渲染包围盒）是 VSM 项目的必要优化。第二，"完全在 Nanite 对象阴影中的失效可以跳过"这个优化很精巧：如果一个要失效的区域恰好整个被某个 Nanite 物体的阴影盖住（也就是那里的阴影本来就是全黑），那么重画与否视觉上没有区别，可以跳过。这个判断对 Nanite 可行，是因为 Nanite 渲染便宜、可以低成本地重验可见性；对非 Nanite 不可行（重画太贵、且没有可靠的可见性信息）。由此得出的实践结论非常重要：建筑、地形、大型遮挡物必须用 Nanite——否则它们投出的大片阴影会阻止失效跳过优化，让整个阴影区域的失效无法被省略，等于把失效成本放大到整个阴影范围。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>你可以使用控制台变量<code>r.Nanite.VSMInvalidateOnLODDelta</code>在Nanite LOD流送更改时触发虚拟阴影贴图失效。 群集若未流送到与计算出的Nanite LOD估算相匹配的LOD中，会触发VSM失效，其在流送完成时会被重新渲染。 此功能是试验性的。 我们不推荐发布带有试验性功能的项目，而且此功能随时可能更改。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个变量处理的是 Nanite 特有的缓存一致性问题。背景：Nanite 的细节是按屏幕误差流送的（集群按需加载），而 VSM 的页是缓存的旧帧数据。如果一个物体的 Nanite 集群还没流送完成（比如刚进入视野，LOD 还在从粗到细加载），VSM 页里存的可能是较粗 LOD 的深度，而主场景里已经渲染了细 LOD——于是出现"几何细节和阴影细节不匹配"：细几何配粗阴影，边缘会错位。默认情况下（关闭此选项）引擎容忍这种不匹配，因为流送通常在几帧内完成，且阴影分辨率往往低于几何分辨率，误差不明显。打开此选项后，只要实际流送的 LOD 与期望 LOD 不一致就触发页失效，保证阴影与几何始终一致，代价是流送期间大量页反复失效重画，性能明显波动。所以它的定位是"质量修复选项"而不是默认行为——官方标记为实验性并建议不要带上架，实践中的判断标准是：如果项目里能看到"阴影边缘跟着 LOD 流送跳动"的瑕疵，可以打开它验证原因，但更稳妥的做法是调整 Nanite 流送池大小/带宽，让流送更快完成，减少不匹配窗口。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在复杂的场景中，即使使用这些可视化，有时也很难查明导致失效的原因。 另一个可以提供帮助的工具是<strong>仅绘制导致VSM失效的几何体（Draw only Geometry Causing VSM Invalidation）</strong>可视化模式，该模式位于关卡视口的<strong>显示（Show） &gt; 可视化（Visualize）</strong>分段下。 启用后，不会导致缓存失效的几何体将隐藏。 由于实现细节，<strong>仅绘制导致VSM失效的几何体（Draw Only Geometry Causing VSM Invalidation）</strong>模式偶尔会显示与阴影投射无关的对象（例如粒子和视觉效果），这些对象经过单独的渲染通道并将绘制在顶层。 使用此可视化时，统计数据不可靠，因为以不同的方式渲染主场景，将影响哪些页会映射和失效。 最好从其他 可视化模式 开始，并使用此项仔细检查。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个模式的作用是"隔离显示"：把所有本帧触发了缓存失效的几何体单独画出来，其他全部隐藏，于是场景里只剩嫌疑人。它和失效边界可视化的分工是：边界可视化告诉你"哪些页被谁影响"，这个模式告诉你"哪些物体是元凶"，两者配合可以快速定位。文档诚实地写出了它的三个坑，值得记牢。其一，粒子和特效会误报：它们走单独的渲染通道，总是画在最上层，看起来像是嫌疑人但其实与阴影失效无关，需要人工排除。其二，观察者效应：这个模式改变了主场景的渲染方式（隐藏了大量几何体），而页的映射本来就依赖屏幕像素分析——场景变简单了，需要渲染的页也变了，失效模式跟着变。也就是说你在观察的同时改变了被观察的系统，看到的失效分布可能与真实运行时不完全一致。其三，因此文档建议的正确流程是：先用 Cached Page 可视化（不改渲染路径）确认有问题区域，再用这个模式缩小嫌疑范围，最后用失效边界确认。这个"先定性、再隔离、后确认"的流程是典型的复杂系统调试方法学，值得照搬。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>你可以使用按图元的枚举类阴影缓存失效行为来覆盖引擎默认的阴影失效行为。 这在防止静态世界位置偏移（WPO）造成的失效时非常有用。 选项包括：</p>
+<ul><li><strong>自动（Auto）</strong>：（默认值）基于世界位置偏移材质和变换更改失效。</li><li><strong>始终（Always）</strong>：始终使阴影失效，可用于标记正在使用系统不知道的某种动画制作方法的图元。</li><li><strong>严格（Rigid）</strong>：禁止原本会因世界位置偏移等生成的失效。</li><li><strong>静态（Static）</strong>：除了<strong>严格（Rigid）</strong>行为之外，还抑制由于变换而产生的失效。 添加/删除仍会触发失效。 如果移动图元或为其制作动画，则视觉效果不明确。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是给内容方的"逃生舱口"，四个档位对应四种信任级别。Auto 是保守正确：只要材质有 WPO/PDO 或者 Transform 变了就失效，绝不出错但也绝不省钱。Always 是强制怀疑：即使引擎检测不到变化也每帧失效，用于引擎感知不到的动画方式（比如通过自定义顶点着色器、Niagara 网格、外部系统改位置的东西）——它保证了正确性，代价是永远全价。Rigid 是"我保证这个 WPO 不产生视觉上需要更新的阴影"：典型场景是草、灌木的微小摆动，阴影里的变化小到看不出来，抑制失效后阴影保持缓存，性能收益巨大。这是植被密集场景最重要的单个优化开关。Static 更激进：连 Transform 变化都忽略，只保留添加/删除时的失效。它适合"永远不会动的静态装饰"，一旦真的动了，阴影会停留在旧位置（文档说"视觉效果不明确"，实际表现是阴影错位或残留）。这里的关键工程判断是：Rigid/Static 是"用正确性换性能"的手动契约，签了契约就要保证内容遵守。所以实践上应该建立规范：只有标记为"装饰性微小摆动"的资产允许 Rigid；Static 仅用于确认永不动的东西；而引擎感知不到动画的自定义效果必须显式 Always，否则会出现阴影不更新这类难以排查的视觉 bug。</p></div>
+</article>
+<div class="sec-h"><h3>### 非Nanite变形和植被</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节聚焦 VSM 的最坏情况：既不能走 Nanite 合并光栅（所以每实例一次 draw call），又每帧必然失效（所以永远全价渲染）的几何体——蒙皮网格、WPO/PDO 材质、植被。这一节给出的所有建议本质上都是"如何减少这类几何体的数量和作用范围"，因为它们的成本模型在 VSM 下是最差的组合。这一节给出的清单是植被密集项目的必做项。其中“LOD 切换到无 WPO 材质”通常收益最大，因为它直接消除了每帧失效的根源，而不是削减失效的后果；其余条目（剔除阈值、粗页禁用、距离场接管）都是在根源无法消除时的止损手段。</p></div>
+<article class="para">
+<div class="zh"><p>使用骨骼动画可以变形的几何体，或使用世界位置偏移或像素深度偏移的材质，始终会使每帧的缓存页失效。 根据定义，这些情况也必须是非Nanite的（开销更高），因此确保谨慎使用这些功能且控制好边界非常重要。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段点出了 VSM 的性能最坏点，值得把成本结构算清楚。一个蒙皮角色或 WPO 草地，在 VSM 下的账单是三重叠加：一是 CPU 侧每实例一次 draw call（没有 Nanite 的实例合并，几十个角色 × 每个光源每个相关 mip 级都是独立的提交），二是 GPU 侧每帧全部页失效重画（缓存完全失效），三是这些页的失效还会连带把同页里的静态几何体一起重画（除非开了单独静态缓存）。三者相乘，解释了为什么"几个角色跑过草地"能让 VSM 场景的帧率大跌。控制手段就是文档说的"谨慎使用 + 控制边界"：把 WPO 的作用范围限制在真正需要的资产上；蒙皮网格控制可见数量与投阴影距离；植被把 WPO 摆动限制在近距离 LOD，远处换静态材质。另一个文档没展开但重要的点：蒙皮网格的失效边界用的是整个骨骼包围盒（通常是全身的胶囊/盒子），因此角色越多、重叠的页越多；把角色的投阴影范围（r.Shadow.RadiusThreshold 和光源的 Shadow Source Radius/距离）收紧，可以直接减少这类失效的覆盖。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>对某些情况而言（例如草值和植被），仅使用 接触阴影 就足以替代高分辨率阴影贴图。 如果前景中需要细节丰富的阴影，请考虑以下事项以帮助降低性能开销：</p>
+<ul><li>非Nanite对象仍然遵循常规的阴影CPU剔除设置，例如<code>r.Shadow.RadiusThreshold</code>。 使用这些来帮助控制将这些对象渲染到虚拟阴影贴图的开销。</li><li>在有大量植被的场景中，强烈建议使用<code>r.Shadow.Virtual.NonNanite.IncludeInCoarsePages 0</code>禁用粗页中的非Nanite对象。 或者，如果不需要，请考虑 完全禁用粗页。</li><li>使用网格体LOD在效果不再明显的距离处切换到不使用WPO/PDO的材质。 在某些情况下，可以为远处的这些对象关闭动态阴影投射，并完全依赖屏幕空间接触阴影。</li></ul>
+<p>对于定向光源，还有其他可用选项：</p>
+<ul><li>距离场阴影会替代超出<strong>动态阴影距离可移动光源</strong>距离范围的非Nanite几何体，而该距离由光源的级联阴影贴图（Cascaded Shadow Maps）分段设置。 为远处的非Nanite切换到距离场阴影，可以大大提高性能，因为此几何体没有Nanite提供的细粒度LOD缩放。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是一份针对植被场景的完整优化清单，可以看作"VSM 时代非 Nanite 几何体生存指南"。逐条提炼要点。RadiusThreshold 是按投影半径剔除的 CPU 剔除（物体投出的阴影小于阈值就不画），对非 Nanite 依然有效，这是控制远处小物件阴影成本最直接的旋钮；注意它不影响 Nanite（前文说过 Nanite 永远画进 VSM）。粗页禁用是针对"画 call 瓶颈"的，前文已详析，这里再次强调是因为植被在粗页上的浪费最夸张：低分辨率页 + 无 LOD 收益 + 全域覆盖。LOD 切换静态材质是治本之策：WPO 摆动在十几米外根本看不出来，却在每帧制造大片失效，所以在 LOD1/LOD2 换成无 WPO 材质（甚至同一个材质里用参数开关），失效量会断崖式下降。远处关投阴影 + 依赖接触阴影是终极手段：远处植被阴影本来就糊，屏幕空间接触阴影提供的"贴地暗部"足以维持观感。"接触阴影足以替代高分辨率阴影贴图"这句话值得注意——它承认了在特定内容类型上，老技术仍然是合理选择，VSM 并不是要消灭一切旧手段。最后关于距离场阴影的补充：动态阴影距离以内的非 Nanite 走 VSM，以外走距离场，这个切换点要按"远处植被的阴影质量要求"来定，太近会出现清晰度跳变，太远则 VSM 成本下不来。</p></div>
+</article>
+<div class="sec-h"><h3>### 单独的静态缓存</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲的是 VSM 缓存体系里最重要的一项增强：把页内的静态几何体和动态几何体分开缓存。它的意义在于解决一个结构性问题——失效的粒度是页，而页内的内容是混合的；哪怕只有一个动态物体路过，整个页里昂贵的静态几何体也要陪着重画。分离缓存把"静态部分"做成可以合成的底层，动态部分只是上面的一小层。它把失效粒度从“页内所有内容”细化到“页内的动态部分”，代价是物理页池翻倍和一次合成开销。是否值得开，取决于场景里静态几何体与动态几何体的成本比例，因此它不是通用优化，而是特定场景结构下的专项优化。开启前后用统计面板对比 Invalidated 与 Cached 的变化，是判断它是否值得开启的最快方法。</p></div>
+<article class="para">
+<div class="zh"><p>该功能尚处于<strong>试验</strong>阶段。 许多场景包含大量从未移动的静态几何体，以及非常少量的动态（或可移动）几何体。 默认情况下，这意味着开销相对较低的动态几何体使页失效，然后导致开销高昂的静态几何体被重新渲染，仅为了更新动态部分。 为了更好地优化这些情况，可以使用<code>r.Shadow.Virtual.Cache.StaticSeparate 1</code>启用可选的<strong>单独的静态缓存（Separate Static Caching）</strong>模式。 此模式将物理页池的大小加倍，以便给定页中的静态几何体可以与动态几何体分开缓存。 即使动态几何体移动，也无需重新绘制静态几何体。 相反，缓存静态页能以较低的开销在顶层合成。 在 遗迹峡谷 这样的示例项目案例中，由于静态地貌开销非常高，而动态元素开销相对较低，这样做可以带来显著的性能优化。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个机制的原理和代价都要看清楚。原理：开启后每个虚拟页对应两个物理页——静态页和动态页。静态几何体画进静态页（失效条件极苛刻：只有几何体增删或自身变化才失效），动态几何体画进动态页（失效条件宽松）；采样时把两张页合成（动态页在静态页之上）。于是动态物体路过时只作废动态页，静态页继续命中缓存。代价：物理页池直接翻倍（显存翻倍，这是最直接的账单），合成步骤本身也有小开销。收益场景非常明确：静态几何体极其昂贵（超大地形、Nanite 巨型地貌、大量静态网格）+ 动态物体少而小。文档给的例子是 Epic 自己的遗迹峡谷（Valley of the Ancient）示例，正是"巨贵静态地貌 + 少量动态元素"的极端情况。这里有个文档没讲的实现细节值得指出：Nanite 之所以能做这种分离，是因为 Nanite 渲染是幂等的、可重放的（同一输入得到同一深度输出），且深度写入不依赖周围状态；而非 Nanite 几何体由于逐 draw call 的状态依赖，分离的粒度和管理复杂度都更高。这也是为什么这个功能仍然是实验性——页池翻倍在显存紧张的平台（尤其主机共享内存架构）上不是免费午餐。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>使用此模式时，准确设置场景中 Actor的移动性 很重要。 特别是，如果设置为静态移动（Static Mobility）的Actor发生移动，甚至使用具有世界位置偏移的材质或类似不受支持的材质，会使动态和静态缓存页都失效，从而导致纯粹的开销而没有任何收益。 相反，如果开销高的几何体中太多的部分设置为可移动（Movable Mobility），那么单独缓存它可能没有什么益处。 虚拟阴影贴图统计数据非常适合用来获得静态缓存工作情况的简要概述。 特别是，"失效"静态页的数量应该接近0。 查找频繁使静态缓存失效的实例并将它们切换到可移动（Movable），是确保静态缓存保持有效的重要方法。 Nanite包含一种高级可视化模式，可帮助确定世界中的对象移动性，这对于虚拟阴影贴图也很有用。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段讲的是分离缓存模式的正确使用契约，两条规则正好是两个方向的失败案例。规则一：标记为 Static 的东西必须真的不动、也不用 WPO。一旦违反，静态页失效 → 静态部分白存了，还额外付出了双倍页池和合成成本，纯亏。实践中最常见的踩坑是：静态植被用了带 WPO 的材质（美术为了摆动效果顺手勾的）、或者通过关卡蓝图/Sequencer 移动了一个 Static Actor。规则二：昂贵的几何体不能标记为 Movable。如果大块昂贵地貌被设成 Movable，它进了动态页，每帧陪着重画，分离缓存就失去了意义。两条规则的判定工具就是统计数据里的 Invalidated（静态）项：理想值是 0，任何非零都意味着有 Static Actor 在违规。排查方法文档给了配套工具——Nanite 的高级可视化里有专门的 VSM Static 模式，按移动性给场景里的物体着色，一眼看出哪些"应该静态的东西被标成了动态"或反之。这个模式本质上是一个移动性审计工具，在开启分离缓存之前跑一遍全场景检查是最稳妥的流程。顺便说，这也解释了为什么 UE5 对"移动性设置正确性"的要求变高了：VSM 时代移动性不再只是"要不要烘焙"的问题，而是直接影响运行时缓存结构的正确性。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>Nanite的高级虚拟阴影贴图静态可视化模式 可以通过以下两种方式之一启用此可视化模式：</p>
+<ul><li>使用<code>r.Nanite.Visualize.Advanced 1</code>启用Nanite的高级可视化选项，然后使用关卡视口（Level Viewport），选择 <strong>视图模式（View Mode） &gt; Nanite可视化（Nanite Visualization）</strong>，并从可视化选项列表中选择<strong>静态虚拟阴影贴图（Virtual Shadow Map Static）</strong>。</li><li>你也可以使用命令<code>r.Nanite.Visualize vsmstatic</code>启用静态虚拟阴影贴图可视化。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段是上面提到的移动性审计工具的具体开启方法。两种入口对应两种使用场景：UI 路径（先开 Advanced 再从视图模式列表选）适合编辑器内交互式排查，可以和其他 Nanite 可视化（集群、LOD、误差）切换对比；命令行路径（r.Nanite.Visualize vsmstatic）适合自动化或快速检查。这个可视化把场景按"对 VSM 缓存而言的移动性"着色，能直接暴露两类问题：一是被错误标成 Movable 的昂贵静态物（它们在拖累动态页），二是被标成 Static 但实际在动的物体（它们在污染静态页）。丢失的截图大概率展示的是一片用颜色区分的城市场景。补充一个实践建议：在项目立项阶段就建立移动性规范（哪些类型的资产允许 Movable），在 CI 或美术评审阶段用这个可视化做抽查，比上线后再排查"为什么静态缓存一直失效"便宜得多——这与前文的失效行为覆盖（Rigid/Static）一起，构成了 VSM 时代的内容资产管理规范。</p></div>
+</article>
+<div class="sec-h"><h3>## GPU分析和优化</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节从"质量与机制"转入"性能与测量"，是全篇最实用的章节。它把 VSM 的开销切成两个几乎独立的桶——阴影深度（把几何体画进页）和阴影投射（屏幕上采样阴影）——这个二分法本身就是排障的钥匙：两桶的成本模型完全不同（前者取决于页数与失效量，后者取决于屏幕像素数、光源数和 SMRT 参数），优化手段也不同（前者靠缓存与 Nanite，后者靠降参数与批处理）。这一节还透露了一个文档其他地方没说的架构事实：Nanite 的 VSM 渲染是全光源合并成两个大批次，而非 Nanite 是逐光源逐实例的旧式提交——这两条路径的成本相差一个量级，是后面所有建议的根源。</p></div>
+<article class="para">
+<div class="zh"><p>虚幻引擎提供了帮助检查项目性能的工具。GPU分析器（或特定于平台的工具）非常适合用于对性能问题进行故障排除和调试。 VSM开销将出现在两个主要的性能桶中：阴影深度和阴影投射（在光源下）。 它们每个类别的代价彼此相对独立。 请注意，用于列出统计数据的命令（如stat gpu和相关计数器）提供的计时有可能不可靠，项目性能受CPU限制的情况下尤其如此。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>两个性能桶的划分要记牢，因为它决定了优化方向的判断。阴影深度（Shadow Depths）= 把几何体渲染进虚拟页的成本，影响因素是页数量（屏幕需求）、失效量、几何体类型（Nanite/非 Nanite）；它对应 GPU profiler 里的 RenderVirtualShadowMaps 通道。阴影投射（Shadow Projection）= 屏幕上每个着色像素对阴影贴图做 SMRT 采样的成本，影响因素是屏幕分辨率、每像素光源数、SMRT 光线数与采样数；它对应 VirtualShadowMapProjection 通道，挂在 Lights | DirectLighting 下。两者独立意味着：场景里加一盏不投影的灯不影响第一桶，加一个不动的物体不影响第二桶。关于 stat gpu 计时不可靠的警告值得展开：VSM 的很多工作发生在异步 compute 队列上，GPU 时间戳的边界可能被队列切换污染；CPU 受限的项目（大量非 Nanite draw call、粗页爆炸）里 GPU 时间看起来正常但帧率上不去。所以正确流程是用平台专用工具（PIX、Razor、RenderDoc 或主机 profiler）按 pass 计时，而不是只看 stat gpu 的汇总数字。这是文档少有的"测量方法"层面的诚实提醒。</p></div>
+</article>
+<div class="sec-h"><h3>### 阴影深度</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>阴影深度桶是 VSM 独有的成本（传统阴影贴图没有"页"的概念，只有整张贴图），也是缓存失效问题的直接体现。这一小节给出了三类渲染路径的归属，并给出了全篇最明确的一条性能建议：所有受支持的几何体都应该开 Nanite，包括低模。这条建议背后的成本模型是理解 VSM 性能的关键。这一小节的三层路径结构（Nanite 合并批次 / 非 Nanite 逐实例 / 传统回落）是理解“为什么要全上 Nanite”的全部依据，建议与后面的非 Nanite 实例统计表对照阅读，两处合起来才是完整的成本模型。另请留意 Nanite 通道的“两个大批次”与光源数量之间是弱相关关系，这是它与传统路径最大的成本差异。</p></div>
+<article class="para">
+<div class="zh"><p><strong>阴影深度（Shadow Depths）</strong>类别是指将几何体渲染到阴影贴图中的开销。</p>
+<ul><li><strong>RenderVirtualShadowMaps(Nanite)</strong>包含所有与Nanite几何体渲染到VSM中相关的内容。 所有定向光源都在单个Nanite通道中渲染，所有局部光源都在第二个通道中渲染。</li><li><strong>RenderVirtualShadowMaps（非Nanite）</strong>将处理非Nanite几何体的渲染。 每个可见光源都有一个单独的通道，各种对象和实例拥有单独的绘制调用，这点与传统阴影贴图渲染相同。</li><li><strong>图集（Atlas）</strong>和<strong>立方体贴图（Cubemap）</strong>与其他类似通道（包括VSM通道）一样，都只渲染传统阴影贴图。 在虚拟阴影贴图的路径中，仍有少部分类型的几何体不受支持，它们遵循传统路径。 如果没有不受支持的几何体投射阴影，这些通道将不会运行或分配阴影贴图存储。 这些通道和相关的开销可以使用控制台变量<code>r.Shadow.Virtual.ForceOnlyVirtualShadowMaps 1</code>完全禁用，在这种情况下，所有不受支持的几何体类型都完全不会投射阴影。</li></ul>
+<p>VSM的阴影深度通道的开销与需要渲染多少阴影页，以及需要在其中渲染几何体的多大部分直接相关。 相比Nanite几何体，非Nanite几何体渲染到VSM中的开销要高得多。 因此，<strong>建议为所有受支持的几何体启用Nanite，包括低多边形网格体</strong>。唯一例外的情况是 Nanite虚拟几何体 暂不支持的功能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段揭示了 VSM 渲染路径的三层结构，是理解性能差距的基础。第一层，Nanite 路径：所有定向光合并成一个通道、所有局部光合并成第二个通道——这是革命性的设计。传统做法里每个光源都要单独遍历一遍场景，N 盏灯就是 N 次全场景提交；VSM 把它们合并成两个大批次，靠 GPU 侧的页掩码决定每个集群实际写到哪些页，等于把"逐光源"的开销摊平成"逐集群"。这是 Nanite + VSM 深度联动的核心收益：光源数量对 Nanite 阴影深度成本的影响被大幅弱化。第二层，非 Nanite 路径：完全退回传统模型，每个可见光源一个通道、每个实例一次 draw call——这意味着一盏灯 × 一个物体 = 一次提交，几十盏灯 × 几百个物体 = 上万次提交，CPU 立即成为瓶颈。这就是"非 Nanite 几何体渲染到 VSM 开销高得多"的量化含义。第三层，传统回落路径：Atlas/Cubemap 通道仍存在，用于 VSM 不支持的少数几何体类型（文档没列全，已知包括部分粒子、某些自定义投影、特定材质特性）。ForceOnlyVirtualShadowMaps 1 是一个干脆的方案：直接让不支持的几何体不投影，换来路径统一和性能可预测，但要接受这些物体没有阴影——通常用于锁定目标画面一致性的项目。最后的建议值得强调："低模也要开 Nanite"。这反直觉但有道理：VSM 下成本不取决于三角形数量（Nanite 的软件光栅对低模同样便宜），而取决于实例数和 draw call 数；把一个 500 三角形的静态网格留在非 Nanite 路径，比开 Nanite 贵得多。唯一不该开 Nanite 的是依赖逐顶点动画（WPO/PDO/蒙皮）的东西，因为 Nanite 不支持。</p></div>
+</article>
+<div class="sec-h"><h3>#### 了解正在绘制的页数</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节给出 VSM 的自带统计面板（r.Shadow.Virtual.ShowStats），把页池状态直接画在屏幕上。这是 VSM 专属的观测工具，等价于虚拟纹理的驻留统计。它的六个指标可以分成三组：容量（物理页数、已分配）、流量（已清除、已失效）、效率（已缓存、已合并）。健康系统的特征是：已分配远小于物理页数、已缓存占绝对多数、已失效接近 0（开了分离缓存时静态失效严格为 0）。统计面板是 VSM 少有的官方自带内部状态观测器，六个指标可以当心电图读：容量（物理页数/已分配）看余量、流量（已清除/已失效）看本帧动作、效率（已缓存/已合并）看命中率，三组指标分别对应三类不同的病，混读容易误诊。</p></div>
+<article class="para">
+<div class="zh"><p>通过屏幕上显示的VSM页统计数据，用户可以了解使用的页数，以及如何解决潜在问题。 连续使用以下控制台变量来启用统计数据：</p>
+<ul><li><code>r.ShaderPrintEnable 1</code></li><li><code>r.Shadow.Virtual.ShowStats 1</code>（或2，以仅显示页统计数据）</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>开启方式要记牢：必须先开 r.ShaderPrintEnable 1（屏幕文本绘制），再开 ShowStats（1 = 完整统计含非 Nanite 实例数据，2 = 只显示页统计）。这两个都是运行时可切换的，打包版本里也能用（非 Shipping），适合在目标硬件上现场诊断。ShowStats 2 的存在暗示页统计是最高频查看的数据——排障时先看页（有没有溢出、失效多不多），再看实例（draw call 压力在哪）。这里补充一个文档没讲的使用技巧：统计数字要结合"场景在做什么"来解读，单独一个数字没有意义。比如 Allocated 突然翻倍，可能是摄像机转了个方向（正常揭示）、可能是加了一盏大范围局部光（页需求激增）、也可能是页池快满了导致的异常；而 Invalidated 高则几乎一定意味着有什么东西在动或者在被错误地标记为失效。把它当作"心电图"而不是"体检报告"来用。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>| 统计数据名称 | 说明 | | --- | --- | | <strong>物理页数（Physical Pages）</strong> | 虚拟阴影贴图可使用的最大物理页数。 | | <strong>已分配（Allocated）</strong> | 当前视图请求的阴影贴图总页数。 这应该始终小于最大页数，否则可能会发生损坏。 （请参阅下文的 问题与限制 小节。） | | <strong>已清除（Cleared）</strong> | 当前帧中清除的新页数。 | | <strong>已缓存（Cached）</strong> | 已存在于虚拟阴影贴图页缓存中，且无需在当前帧中渲染的页数。 缓存页的开销极低，对性能几乎没有影响。 当启用单独的静态缓存时，缓存静态页和缓存动态页会进一步拆分。 | | <strong>已失效（Invalidated）</strong> | 前一帧中本已缓存，但因动态几何体而失效的页数。 这些页需重新渲染，因为某个对象移动而覆盖了它们。 当使用单独的静态缓存时，静态页的失效次数在理想情况下应该为零或非常接近零。 如果大量静态页失效，则导致失效的Actor应该切换到可移动（Movable）。 | | <strong>已合并（Merged）</strong> | 当启用单独的静态缓存时，这是动态页和静态页的合并页数（由于其中一个未缓存）。 |</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这六个指标转成诊断规则。容量规则：Allocated / Physical Pages 的比值要留余量，建议低于 80%；接近 100% 时会出现文档后面讲的棋盘格损坏，而且这种损坏往往先出现在低优先级页（远处、低 mip），表现为"远处阴影先花掉"。流量规则：Cleared 是本帧新分配并清零的页（包括揭示的新页和被淘汰后重新分配的页），它在摄像机快速移动或镜头切换时会尖峰；Invalidated 是失效重画的页，它是"病态成本"的直接指标，静止摄像机下应该接近 0，持续非零说明有东西在被错误失效。效率规则：Cached 应占绝对多数（健康场景往往 90%+），如果 Cached 比例低，要么失效太多、要么页池太小导致频繁淘汰（页池不足时会出现"分配-淘汰-重分配"的抖动，即 page churn，Cleared 持续偏高而 Invalidated 不高——这是区分"失效过多"和"池太小"的关键信号，文档没有明确讲，但正是实际排障最需要的判别）。Merged 只在分离缓存下出现，表示需要合成的页数，它本身有开销，数量大说明分离缓存的实际收益在缩水。另外注意"缓存页开销极低"这句话的量化含义：缓存命中的页既不提交几何体也不写深度，只是页表里仍然有效，所以成本近乎零——这就是为什么 VSM 场景里"光源数量多但都静止"并不像传统管线那样线性增加成本。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>总页数取决于影响屏幕上各像素的光源的平均数量。 你可以通过降低屏幕分辨率、阴影分辨率（使用控制台变量来控制分辨率LOD偏差）、光照范围、或阴影投射光源的数量来降低它们。 阴影深度中的性能降低通常与使用了大量页和发生大量动态失效有关（这会导致VSM的缓存不足）。 如需详细了解诊断和减少缓存失效，请参阅 缓存 小节。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段给出了总页数的函数关系和四个调节旋钮，值得逐个分析成本收益。"总页数 ∝ 受屏幕像素影响的光源平均数量"是 VSM 的成本模型核心：一盏只照到屏幕角落的小灯只需要覆盖那几个像素的页，一盏照满全屏的灯需要覆盖整个屏幕投影的页；所以页数的期望值 ≈ Σ(每盏灯的屏幕覆盖面积) / 页面积。四个旋钮的作用机制各不相同。降屏幕分辨率：线性减少需要的像素 → 线性减少页数，但影响整体画质，通常最后才动。降阴影分辨率（LOD bias）：让每个像素映射到更粗的 mip/页，直接减少页数，性价比高但阴影变糊——这是最常用的动态调节手段（可结合可伸缩性系统按性能分级）。缩光照范围：减少每盏灯影响的屏幕区域，对多灯场景尤其有效，而且不影响画质只影响照亮范围，通常需要美术配合。减投影光源数量：最直接，把远处或不重要光源的 Cast Shadow 关掉。最后一句点出了因果链："大量页 + 大量失效 → 缓存失效"的本质是缓存的工作集（working set）超过了池容量。这和 CPU 缓存/虚拟内存的抖动（thrashing）是同一个数学问题：工作集 &gt; 容量时，每次分配都要淘汰，被淘汰的页下一帧又需要，于是每帧都在全额重画。解决办法要么扩容（加显存），要么缩工作集（降分辨率、减灯），要么减少失效（让被淘汰的页不至于反复需要）。文档把它归到"缓存不足"是准确的。</p></div>
+</article>
+<div class="sec-h"><h3>#### 提升非Nanite性能</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节是"必须用非 Nanite 时的止损清单"。它的整体逻辑是：非 Nanite 几何体在 VSM 里是二等公民（每实例 draw call、无合并光栅、失效传染），所以策略只有三个方向——减少数量（尽量转成 Nanite）、减少页覆盖（剔除、粗页禁用、距离场接管）、减少失效（LOD 切静态材质）。清单里的每条建议都能对应到这三个方向之一。清单虽长，方向只有三个：转成 Nanite、减少页覆盖与提交、减少失效。遇到具体问题时先判断它属于哪个方向，再从对应方向的条目里挑手段，比按顺序逐条尝试快得多，也更容易判断哪条改动真正起了作用。</p></div>
+<article class="para">
+<div class="zh"><p>除了改进缓存之外，还有许多方法可以提高非Nanite阴影渲染的性能。 考虑以下事项以提高非Nanite对象的性能：</p>
+<ul><li>在你的项目的几何体中尽可能多的部分上启用Nanite。</li><li>Nanite几何体在虚拟阴影贴图中的渲染效率要高得多，无论多边形数量如何，都应该在每个适用的情况下作为首选。</li><li>Nanite几何体可以遮挡非Nanite几何体并避免虚假缓存失效。 因此，唯一的非Nanite对象应该是Nanite本身不支持的对象，例如变形对象（蒙皮网格体），或使用世界位置偏移（WPO）和像素深度偏移（PDO）的材质。</li><li>非Nanite对象应具有完整的网格体LOD层级设置。</li><li>非Nanite网格体具有LOD设置很重要，否则渲染到小页的开销会非常高。</li><li>如果可以，建议在距离太远而使效果不明显时切换到非变形网格体（无WPO/PDO材质）。</li><li>CPU剔除控制台变量对于渲染到虚拟阴影贴图的非Nanite网格体仍然有用</li><li>使用控制台变量<code>r.Shadow.RadiusThreshold</code>，调整渲染到虚拟阴影贴图中的非Nanite对象的CPU剔除值。 这有助于控制远处小型对象的开销。</li><li>使用 距离场阴影 进行非Nanite对象的远距离阴影投射</li><li>对于定向光源，在超出某个范围时通常需要切换到距离场阴影，与级联阴影贴图相同。 使用虚拟阴影贴图，仅非Nanite几何体将切换到使用距离场阴影，而Nanite几何体仍采用全细节阴影。</li><li>在粗页中禁用非Nanite几何体可以提高性能</li><li>在粗页中禁用非Nanite几何体通常可以实现大幅的性能提升，因为非Nanite几何体在渲染到大页中时通常效率低下。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这份清单按三个方向重组会更清楚。方向一，转成 Nanite：前三条。除了已讲的 draw call 优势，这里还点出一个额外收益——Nanite 能"遮挡非 Nanite 几何体并避免虚假缓存失效"。机制是：如果一个小物体完全被一个 Nanite 大物体的阴影覆盖，它自己的失效可以被跳过（前文讲过的失效跳过优化）；所以 Nanite 越多，失效跳过的机会越多，整个场景的失效传染性越低。这形成了一个良性循环：Nanite 占比越高，VSM 缓存越有效。方向二，减少页覆盖与提交量：LOD 层级（第四、五条）——"渲染到小页的开销会非常高"这句话的机制是：非 Nanite 网格如果没有 LOD，画到 128×128 的小页时仍然要处理全部三角形（GPU 顶点处理与三角形设置的开销不变，产出却只有 16K 纹素），等效于极高的浪费率；有 LOD 后小页用低模，开销与产出匹配。RadiusThreshold（第六、七条）按投影半径剔除远处小物体，直接砍掉无效提交。距离场接管（第八、九条）：远距离非 Nanite 切换到解析可见性，省掉整个渲染路径，代价是远处阴影只剩轮廓（且只对非 Nanite 生效，Nanite 仍全细节——所以 Nanite/非 Nanite 混合场景在切换距离外会出现细节差异）。方向三，减少失效：粗页禁用（第十、十一条）和上一节的 LOD 切静态材质。粗页问题前文已详析，这里补充为什么"渲染到大页效率低"：粗页虽然分辨率低，但覆盖范围巨大，非 Nanite 实例要为每个覆盖的粗页重复提交（文档后面统计里的 48 实例/点光就是这样来的），而且没有 LOD 收益，纯浪费。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图统计数据可帮助你深入了解非Nanite实例数量： | 统计数据名称 | 说明 | | --- | --- | | <strong>总数（Total）</strong> | 输入到GPU剔除的非Nanite实例总数。 为每个虚拟阴影贴图Mip/裁剪图级别单独剔除实例。 例如，单个静态网格体实例可以为其相交的每个点光源生成48个实例（8个Mip级别 * 6个立方体贴图面），为每个定向光源生成17个实例（在默认配置中，有17个裁剪图级别），等等。 | | <strong>绘制（Drawn）</strong> | 剔除后实际绘制到所有虚拟阴影贴图中的实例数。 | | <strong>剔除的HZB（HZB Culled）</strong> | 由于光源角度被（Nanite几何体）遮挡而删除的实例数。 | | <strong>剔除的页遮罩（Page Mask Culled）</strong> | 由于不重叠任何所需页而被删除的实例数。 例如，这可以表示在绘制到已缓存区域时丢弃的静态网格体。 | | <strong>剔除的空矩形（Empty Rect Culled）</strong> | 由于不重叠任何所需页而被删除的实例数。 例如，这可以表示在绘制到已缓存区域时丢弃的静态网格体。 | | <strong>剔除的视锥体（Frustum Culled）</strong> | 视锥体之外的实例数。 | （注：原文中"剔除的页遮罩"与"剔除的空矩形"两条说明完全相同，应为官方文档复制粘贴错误。）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>先说文档错误：Page Mask Culled 和 Empty Rect Culled 的说明一字不差，明显是复制粘贴疏漏。按实现逻辑推断两者的区别应该是：Page Mask Culled 指实例的包围盒在光源空间投影后，与"本帧需要的页掩码"完全不相交而被剔除（也就是它要画的页都不需要渲染，可能因为整页已缓存或没有像素需要）；Empty Rect Culled 指实例的投影矩形在裁剪到某页/某 mip 的边界后面积为零而被剔除（几何上不相交）。两者都是"GPU 侧剔除后省掉的提交"，但前者是页需求驱动的语义剔除，后者是几何裁剪。这张表最有价值的信息是"总数"里的倍数关系：一个静态网格体实例，对一个点光要生成 8 mip × 6 面 = 48 个候选实例，对一个定向光要生成 17 个候选（17 级 clipmap）。这解释了非 Nanite 提交量的爆炸方式：100 个非 Nanite 物体 × 20 盏点光 = 96000 个候选实例要走 GPU 剔除管线，即使 90% 被剔除，CPU/GPU 的剔除和提交开销也已经可观。Drawn/HZB Culled/Page Mask Culled 等比例则是健康度指标：如果 Drawn 接近 Total，说明剔除效率低（可能物体都在视野里且都需要阴影，此时只能减物体或减灯）；如果 Page Mask Culled 很高，说明缓存命中良好（大量实例要画的页已缓存，无需重画）——这是一个好信号。HZB Culled 反映的是"被 Nanite 遮挡"的实例，它依赖 Nanite 生成的光源视角深度层级，这也再次说明 Nanite 占比对非 Nanite 路径有直接补贴。</p></div>
+</article>
+<div class="sec-h"><h3>### 阴影投射</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>阴影投射桶是屏幕空间成本，与页数和缓存无关（只要页存在）。这一小节给出的成本模型非常清晰：开销 = 屏幕上被阴影采样覆盖的像素数 × 每像素光源数 × 每像素光线数 × 每光线采样数。理解这个模型就能预判任何改动的性能影响：加一盏照满屏幕的灯比加十盏角落里的小灯贵；开 SMRT（加光线）比提高阴影分辨率（只影响深度通道）贵得多。与“阴影深度”一节的分工要记牢：深度桶由场景动态性决定、难以用参数平滑调节；投射桶由参数与屏幕覆盖决定、可以连续调节。因此性能预算的弹性应该优先留给投射桶，深度桶则要靠内容规范守住底线。这一点在排障时尤其有用：阴影深度异常先查失效与页池，阴影投射异常先查参数与光源覆盖。</p></div>
+<article class="para">
+<div class="zh"><p><strong>阴影投射（Shadow Projection</strong>）类别是使用阴影贴图光线追踪对阴影贴图取样产生的开销。 这些通道位于<strong>光源（Lights） | DirectLighting | UnbatchedLights</strong>下，通常每个相关光源都有一个VSM投射通道。 产生最高开销的通道一般都是<strong>VirtualShadowMapProjection</strong>中的主SMRT循环。 其余的开销应该相对较低。 如果投射通道被标记为<strong>RayCount:Static</strong>而不是<strong>RayCount:Adaptive</strong>，则表示正在采用慢速路径。 该小节中描述的VSM投射通道不同于下一小节中介绍的试验性单通道投射。 阴影投射完全取决于整个屏幕上获取的阴影贴图取样的总数，而性能并不取决于页数或缓存。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段有几个关键信息。第一，通道归属：VirtualShadowMapProjection 挂在 UnbatchedLights 下，意味着默认路径里每个光源各自有一个投射通道（逐光源串行累加），这也是"单通道投射"要解决的问题——通道本身有固定开销，通道数 = 光源数。第二，主 SMRT 循环是最贵的部分：它就是每像素 N 条光线 × 每光线 M 次阴影贴图查询的内层循环，随机访问 + 页表间接查找，是带宽和延迟双敏感的代码，所以它几乎总是投射桶里的大头。第三，RayCount:Static 与 Adaptive 的区分很重要：Adaptive 意味着引擎根据局部情况（半影大小、表面倾角）动态调整光线数，半影小的地方少用光线；Static 则是固定用最大值——这是慢速路径的标志。什么时候会掉进 Static？通常与某些光源特性或平台/驱动限制有关（文档没细说），如果在 profiler 里看到 Static，先检查光源设置（是否用了不支持的特性）和平台支持。第四，"性能不取决于页数或缓存"这句话要准确理解：它指的是投射通道的成本与缓存命中率无关（命中与否都要采样），但页缺失会导致回退逻辑和潜在的质量问题，间接影响不算在成本里。所以两个桶的优化是解耦的：改 SMRT 参数不影响深度通道，改缓存行为不影响投射通道（除非导致页缺失）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>阴影投射完全取决于整个屏幕上获取的阴影贴图取样的总数，而性能并不取决于页数或缓存。 使用SMRT时，归根结底在于：</p>
+<ul><li><strong>逐像素平均光源数（Average lights per pixel）</strong></li><li>照射到屏幕大部分的光源越多，渲染开销就越高。 对于那些只覆盖屏幕上的少量像素的光源，开销较低，不过仍有一些固定的逐光源开销。</li><li>应注意避免屏幕上的大部分像素被几个大型光源占用。</li><li><strong>逐像素光线数（Rays per pixel）</strong></li><li>阴影的可见柔和度会因为光线数量的调整而对性能产生影响。 在降低光线数量和取样数量前，请先尝试降低局部光源半径或定向光源角度。</li><li><strong>逐光线样本数（Samples per ray）</strong></li></ul>
+<p>这些设置由<strong>阴影（Shadow）</strong>可伸缩性设置项进行设置，但可以根据需要进一步调整。 有关更多细节，请参阅本页的阴影贴图光线追踪（Shadow Map Ray Tracing）小节。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段给出了三个成本维度和调参优先级，是 SMRT 性能优化的操作准则。第一个维度，每像素平均光源数，是多数项目失控的地方：一盏大范围灯照满屏幕 = 整屏像素都要为它做 SMRT，相当于把阴影投射成本乘上 1；十盏这样的灯就是十倍。而小灯只覆盖几个像素，虽然有固定开销（通道启动、缓冲区分配等），但总体便宜。所以"避免几个大型光源占据屏幕大部分"是核心建议，实现手段是控制光源的影响半径（Radius）、把大范围照明改用定向光或反射捕获、以及用 Max Draw Distance 剔除远处的投影光。第二个维度，光线数，直接乘进成本，且按 √N 只能减噪，所以性价比低。第三个维度，每光线样本数，同样线性。关键在于文档给的优先级："先降半径/角度，再降光线与样本数"。原理是：半径/角度决定半影的物理宽度，半影窄了，同样的光线数就能覆盖得更密（噪声更小），而且需要步进的距离也短（样本数可以少），等于同时优化了质量和成本；反过来先降采样数会在半影里留下结构性漏光。这是一个典型的"先调物理参数、再调数值参数"的优化思路——物理参数改变的是问题本身的难度，数值参数只是在固定难度下分配算力。另外注意阴影可伸缩性档位会成组地设置这些值，所以项目里应该先确定目标档位（比如主机锁 Medium），再针对特定场景用控制台变量微调，避免两套设置互相覆盖。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>通常，阴影投射开销远比阴影深度开销更易控制（权衡品质和噪点）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这句话是个重要的工程判断：投射桶有连续的"质量-成本"滑杆（光线数、样本数、半径），可以平滑地调到任何性能点，代价只是噪点和柔和度；深度桶没有这样的滑杆——页要么渲染要么不渲染，失效要么发生要么不发生，它的成本结构是离散的、由场景动态性决定的，可控性差得多。这也解释了为什么全篇的"性能问题"章节大部分在讲缓存失效：Epic 自己也认为深度桶是难点。对项目方的启示是性能预算的分配策略：把投射桶当作"可调余量"（性能不够先降 SMRT 参数，观感损失可控），把深度桶当作"必须守住的底线"（通过内容规范控制失效，一旦失控很难用参数救回来）。此外还有一层含义：投射桶的成本与画面内容（几何复杂度）几乎无关，只与屏幕覆盖和参数有关，所以它的性能是可预测、可锁定的；深度桶则依赖内容行为，需要在整个游戏流程上做回归测试，不能只测特定场景。</p></div>
+</article>
+<div class="sec-h"><h3>#### 单通道投射</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这是全篇唯一讲"未来架构"的小节，也是 VSM 多光源性能问题的解法。它把传统的"逐光源串行投射"改成"一次批处理所有局部光 + 簇延迟着色"，是 clustered shading（Olsson 等人 2012 年提出的经典方案）在 VSM 阴影投射上的应用。理解这一节需要先理解逐光源路径的浪费：小灯只覆盖几个像素，但每个通道都有固定启动开销、缓冲读写和带宽往返，几十盏小灯的固定开销加起来可能超过实际着色工作。这是 VSM 当前最明确的一条性能演进路线，也是多光源场景的主要解法。但它本质上是“换光照管线”而不是“换阴影算法”，启用前需要按光源特性排除清单审查整个项目的灯光资产，否则会得到静默降级的结果。</p></div>
+<article class="para">
+<div class="zh"><p>该功能还处于实验阶段。 本节中的控制台变量名称可能会更改。 虽然较小光源的开销较低，它们仍有一些固定通道开销。 通过开发单通道阴影投射解决方案，该问题已得到解决。在该方案中，对于场景中的大多数局部光源，可在一条通道中高效计算它们的阴影投射。 之后可使用群集着色（clustered shading）来一次性应用来自这些光源的阴影贡献。 你可以使用控制台变量<code>r.UseClusteredDeferredShading 1</code>和<code>r.Shadow.Virtual.OnePassProjection 1</code>来启用该路径。 对于拥有大量小型局部光源的场景而言，这可以大幅提升性能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个方案的两半要分开理解。第一半是单通道投射：把所有能批处理的局部光源的阴影投射在一条 compute 通道里算完，输出每个像素/簇的阴影数据（通常是每像素光源索引 + 阴影因子缓冲）。这消除了 N 个通道的固定开销，也消除了逐光源的读写往返（传统路径里每个光源的投射结果要写进累积缓冲再读回来）。第二半是簇延迟着色（clustered deferred shading）：屏幕被分成 3D 簇（2D 分块 × 深度分段），每个簇记录影响它的光源列表，着色时一次性应用所有光源的贡献。这是把"逐光源循环"从通道级移到了着色器内部的簇列表循环，配合同一批射入的阴影数据，实现"一条通道完成所有局部光的阴影 + 光照"。注意启用需要两个开关：r.UseClusteredDeferredShading 1（整个光照路径切到簇延迟模式，不只是阴影）和 r.Shadow.Virtual.OnePassProjection 1（阴影投射批处理）。这意味着这是一个"换管线"级别的决定，不是单独的阴影优化——它会影响整个直接光照的合成方式，可能与其他光照特性冲突（下面列的就是冲突清单）。适用场景非常明确：大量小型局部光（城市夜景、室内多灯、科幻面板）。如果场景只有一两盏大光源，批处理没有意义，反而可能因为簇数据结构开销变慢。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>即使启用了单通道投射（One Pass Projection），某些光源功能的使用也会阻止光源的批处理：</p>
+<ul><li>纹理分析</li><li>光源函数</li><li>光照通道</li><li>矩形光源</li><li>定向光源（因为它们覆盖了整个屏幕，所以对这些进行批处理没有任何益处）</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这份排除清单的共性值得分析：所有被排除的特性都是"破坏光源同质性"的东西。批处理的前提是所有光源可以用同一套着色代码、同一套数据布局处理；纹理分析（texture analysis）和光源函数（IES profile）需要每光源独立的纹理采样参数，破坏统一的数据布局；光照通道（lighting channels）需要按光源分组的光照合成语义，与"一次性应用所有光源"的模式冲突；矩形光源（rect light）有完全不同的面积采样和分布函数，代码路径不同；定向光覆盖全屏，批处理它的收益为零（本来就要全屏做一次），反而增加数据管理成本。这个清单实际上是"簇延迟着色路径的功能子集"声明：想要单通道投射，就必须接受光源特性上的限制。这对项目的技术美术是个约束：大量使用 IES 光域网文件（很常见的做法，尤其是建筑可视化和写实场景）会阻止批处理，等于放弃这条优化路径。文档没有说的是：被阻止批处理的光源会怎样——是回退到传统逐光源通道（混合路径），还是整个场景都退回传统路径？从下文"如果同时有 VSM 和经典阴影贴图会忽略后者"的描述看，批处理是按光源逐个判定的，不能批的走老路，但这部分行为没有明确说明，属于需要实测确认的模糊地带。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在下图中，左侧显示的是逐光源的阴影投射通道，而右侧是单通道投射。 在左侧的默认路径中，每个局部光源一个接一个地累加，每个光源有几个通道。 这对于覆盖小屏幕区域的小光源来说效率很低。 在右侧的新路径中，所有投射阴影的局部光源都在单个群集着色通道（<strong>BatchedLights</strong>）中一起批处理。 定向光源仍然在单独的通道中处理，它覆盖了整个屏幕，因此对它进行批处理没有益处。 每个局部光源仍然分别注入到半透明体积中。 与投射相比，这对性能而言不是问题，但将来也可能会进行批处理。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>丢失的这张架构对比图是本节最重要的信息载体（通道结构图）。左路（默认）：每盏局部光依次执行"阴影投射 + 光照累加"，通常两三个通道一组，串行 N 次；右路（单通道）：所有可批处理的局部光合成一条 BatchedLights 通道，内部完成阴影投射，再用簇着色一次性应用光照。图中还能看出的信息（从文字推断）：定向光在两条路径里都是独立通道（它本来就需要全屏处理），半透明体积光照（translucent volumetric，即被照亮烟雾/大气）也仍是逐光源注入——也就是说批处理只覆盖"表面直接光照的阴影"这一块，体积路径暂时没有批。这个限制的实际影响：如果场景大量使用体积雾中的光源光柱（很依赖局部光），这部分成本不会被单通道投射优化掉。文档说"将来也可能会进行批处理"，暗示体积注入的数据结构改造在计划中。另外 BatchedLights 这个通道名可以直接在 GPU profiler 里搜索，是验证批处理是否生效的最快方法：启用了 OnePassProjection 后应该看到 UnbatchedLights 下的逐光源通道消失，出现一条 BatchedLights。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>启用单通道投射（One Pass Projection）后，可以从默认值16开始调整<code>r.Shadow.Virtual.OnePassProjection.MaxLightsPerPixel</code>，从而限制逐像素完全筛选的投射阴影的光源数量。 这对于控制性能很有用，并且可以节省少量的临时图形内存。 如果投射阴影的光源多于给定像素（或实际中的群集延迟着色区块）中的最大值，则将使用开销更低的单个硬阴影查找对额外的光源进行阴影处理。 如果该值设置得太激进，这可能会导致视觉效果不连续，但通常比完全禁用超出数量的光源的阴影更易接受。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个上限机制是一个"分级降质"设计，很值得学习。MaxLightsPerPixel = 16 的含义是：每个像素（实际是簇）最多有 16 盏光源能得到完整的 SMRT 软阴影采样；超出部分降级为"单次硬阴影查找"（一次深度比较，无半影、无 SMRT）。注意它不是直接砍掉超量光源的阴影（那是老式做法，会产生阴影突然消失的硬边界），而是平滑降质——超量光源仍有阴影，只是软阴影变硬阴影。这带来两个好处：一是性能上限可控（最坏情况的采样成本被硬性锁定为 16 盏灯的完整采样 + 其余的廉价查找），二是视觉上没有"阴影开关"式的突变。代价是文档说的"不连续"：当光源数量在 16 附近波动（比如角色走进一片密集光源区），某些光源的阴影会在软硬之间跳变，这个跳变发生在光源数量 crossing 阈值的瞬间，可能表现为闪烁。降低这个值能省性能和临时显存（缓冲区大小与光源数上限相关），但会让降质边界更容易被触发。这里有个实用判断：16 这个默认值已经相当宽松，多数场景的每像素光源数远低于此（重叠超过 16 盏投影光的像素很少见），所以除非 profiler 显示 BatchedLights 通道异常昂贵或临时显存吃紧，一般不用动它；密集光源场景（灯海、霓虹城）才需要认真调。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>此通道仍在开发中，默认情况下未启用。 主要需要注意的是，如果局部光源同时具有虚拟阴影贴图和经典阴影贴图（由于场景中存在某种不受支持的几何体类型），单通道投射路径会忽略后者，从而导致这些阴影消失。 如果你已经使用了<code>r.Shadow.Virtual.ForceOnlyVirtualShadowMaps</code>，那么你应该就可以安全地同时启用单通道投射。 解决了当前的限制后，它可能会成为默认使用路径。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是单通道投射目前最关键的缺陷说明，机制要弄清楚。背景：当场景里有 VSM 不支持的几何体时（比如某些粒子或特殊材质），引擎会为受影响的局部光同时保留传统阴影贴图路径（Atlas/Cubemap 通道），于是这盏灯的阴影由两部分组成——VSM 页里的部分 + 传统阴影图里的部分，两者在着色时都要采样并合成。而单通道投射路径只处理 VSM 数据，不做传统阴影图的采样，于是那部分阴影直接消失。后果是：场景里有不受支持几何体时开启单通道投射，会出现"某些物体的影子没了"这种难以归因的视觉 bug——尤其是当不受支持的物体是小物件（粒子、特效面片）时，丢失的阴影很细碎，容易被忽略但会让画面发脏。所以官方给出的安全组合是：ForceOnlyVirtualShadowMaps 1 + 单通道投射——前者已经强制所有几何体只走 VSM（不支持的直接不投影），不存在传统阴影图，自然没有丢失问题。这个组合可以看作"激进模式套件"：路径统一、性能可预测、功能有损（不支持的几何体无阴影）。最后一句"可能会成为默认路径"是个重要信号：Epic 的意图是让簇延迟着色 + 单通道投射成为 UE5 局部光的主路径，当前不默认开启只是因为功能缺口（上面列的排除清单）。因此新项目如果目标是大量局部光，现在就按这个组合设计内容规范（避免使用被排除的光源特性）是值得的，将来切换时成本最低。</p></div>
+</article>
+<div class="sec-h"><h3>## 支持的平台</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节列出的硬件门槛实际上泄露了 VSM 的底层依赖清单，是理解"为什么移动端不行"的直接证据。把要求翻译成技术能力：DirectX 12 / Vulkan（需要稀疏资源和现代绑定模型）、SM 6.6 atomics 或 VK_KHR_shader_atomic_int64（GPU 原子操作做页分配和页表更新）、64 位整数原子（页表项打包）、以及相对充裕的显存/带宽。这四条正好是移动端 GPU 普遍缺失或不保证的。平台清单不应只当作“能不能跑”的判断，更应读成一份能力要求书：GPU 原子操作、稀疏/瓦片化资源、足够带宽、最新驱动，四条缺一不可。这四条同时也是移动端缺席的完整解释，文档本身没有明说这层因果关系。</p></div>
+<article class="para">
+<div class="zh"><p>Virtual Shadow Maps目前支持PlayStation 5、Xbox Series S|X、以及符合以下显卡要求的PC（需要使用最新显卡驱动并支持DirectX 12）：</p>
+<ul><li>NVIDIA：Maxwell显卡或更新系列</li><li>AMD：GCN显卡或更新系列</li><li>支持所有高于1909.1350版本的Windows 10，以及支持 DirectX 12 Agility SDK 的Windows 11。</li><li>Windows 10版本1909 — 修订版号应大于或等于.1350。</li><li>Windows 10版本2004和20H2 — 修订版号应大于或等于.789。</li><li>DirectX 12 (支持Shader Model 6.6 atomics) 或者Vulkan (VK_KHR_shader_atomic_int64)</li><li>Apple Silicon M2或更新系列。</li><li>安装NVIDIA GeForce 2080或更新系列的Linux。</li><li>最新的显卡驱动</li></ul>
+<p>如需了解Epic Games推荐硬件和软件规格的更多信息，请参阅 硬件和软件规格。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这份清单背后的技术门槛拆开看。第一，GPU 原子操作是硬门槛：VSM 的页分配需要多个线程在 GPU 上竞争物理页（先到先得），页表更新需要原子写（避免竞态导致的页表不一致），这要求 SM 6.6 的原子指令或 Vulkan 的 64 位整数原子扩展。GCN/Maxwell 这个下限恰好是"支持高效原子操作 + 支持瓦片化资源"的一代。第二，Windows 版本要求（1909.1350 / 2004.789）对应 DirectX 12 Agility SDK 的运行时依赖，说明 VSM 用到了较新的 D3D12 特性。第三，Apple Silicon M2 在列但 iOS 不在列，这是个值得注意的信息：M2 的统一内存和瓦片化 GPU 能撑起 VSM，但 iOS 上的移动 GPU（内存/带宽受限、Metal 的稀疏纹理支持受限）不行——这暗示 VSM 的边界不是"Apple 生态"而是"内存/带宽预算"。第四，Linux 要求 2080 以上，比 PC Windows 的要求（Maxwell）高很多，这可能与 Linux 驱动的 Vulkan 原子扩展支持成熟度有关。第五，"最新显卡驱动"被单独列为一条要求，说明 VSM 依赖较新的驱动特性和 bug 修复，老驱动会有渲染异常。综合来看，这份清单本质上是一份"GPU 原子操作 + 稀疏资源 + 足够带宽"的能力证明，文档没有明说的推论是：所有不满足这三条的设备（绝大多数移动设备、老 APU、集成显卡的低端型号）都被排除在外。</p></div>
+</article>
+<div class="sec-h"><h3>## 问题和局限性</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节是官方对 VSM 现状的诚实交代，也是最有"工程温度"的一章。列出的六个问题各有不同的性质：多光源性能是架构未完成（单通道投射在路上）、低多边形瑕疵是算法固有的（几何法线与着色法线的不匹配，光追也有）、VR/分屏是场景配置未覆盖、页池溢出是资源管理问题、场景捕获是实现 bug、材质限制是功能缺口、分辨率耗尽是数学上限。区分性质很重要——有的等版本就能解决，有的需要内容侧配合，有的是物理上无解。读这一章建议按“能不能等版本解决”分类：架构未完成的部分（多光源、粗页、每帧预算）会随版本改善；数学上限（投影锯齿、分辨率耗尽）与内容问题（低模明暗界限、透光材质）则永远需要项目侧配合，前者靠耐心，后者靠规范。</p></div>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图仍在积极开发中。 目前，它们的使用存在一些已知的问题和局限性，这些情况当前针对的是高端台式机和次世代主机。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这句总起里的"针对高端台式机和次世代主机"是一个明确的定位声明，值得与平台支持清单对照读。它说明 VSM 的设计目标硬件是 10+ TFLOPS、高带宽、支持现代图形特性的设备；这也解释了文档中反复出现的性能建议（全上 Nanite、控制失效、减光源）为什么如此激进——它们是在为"能跑得动 VSM"划定内容标准。同时"仍在积极开发中"意味着本文档描述的行为（尤其缓存、粗页、单通道投射）在后续版本可能变化，控制台变量名和默认值都可能改。对项目的实际含义是：要么锁定引擎版本并做好回归测试，要么持续跟进版本说明；VSM 相关的工程决策（比如内容规范里的移动性管理）应该设计成可调整的，而不是硬编码依赖当前行为。</p></div>
+</article>
+<div class="sec-h"><h3>### 多光源性能</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>多光源是 VSM 目前最明确的短板，官方把它放在局限性第一位。这一小节值得与前文"阴影投射"和"单通道投射"两节合起来读：问题根源、现状策略、未来方向三段都散落在不同章节。这一节把现状策略与未来方向同时摆了出来，是目前关于 VSM 多光源问题最集中的一次表态。值得与前文“阴影投射”和“单通道投射”两节交叉阅读，三处合起来才构成完整的多光源成本模型与优化路径。建议在多光源场景的性能回归里同时记录 Invalidated 页数与 BatchedLights 通道耗时，两者分别代表深度桶与投射桶的压力，能快速定位是哪一侧在拖后腿。</p></div>
+<article class="para">
+<div class="zh"><p>对于具有许多小局部光源的场景，性能仍在持续提升中。 目前，最佳策略是 启用单通道投射 并小心地处理失效问题，以使尽可能多的页保持缓存。 多个局部光源在Nanite几何体中的表现要比非Nanite几何体好得多，因此在远处大幅剔除或禁用对非Nanite几何体的阴影投射会有很大帮助。 在某些情况下，你可能需要完全禁用对远处光源的动态阴影投射，并仅依赖屏幕空间的 接触阴影。 将来，将提供更好的控制来进行算法和品质权衡，以及限制这些情况下的更新。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把多光源问题的完整账算一遍就明白为什么它难。假设一个城市夜景有 100 盏投影点光：深度桶方面，每盏灯最多六面、每面若干 mip 级，即使每面只分配少量页，页池需求也是天文数字，且任何一盏灯动一下就作废它的全部页；投射桶方面，即使单通道投射把通道开销消掉了，每像素的重叠光源数仍然直接乘进采样成本，密集光源区的像素可能同时被十几盏灯照射。目前的策略组合官方给得很清楚：单通道投射（解决通道开销）+ 失效管理（保持缓存命中，避免页重画）+ Nanite 优先（深度桶便宜十倍）+ 远处非 Nanite 剔除（CPU 提交降压）。"完全禁用远处光源的动态阴影投射、只靠接触阴影"是一个很务实的老技术兜底——远处光源的阴影本来就小而模糊，屏幕空间的暗部近似足以维持观感。这段也暴露了一个文档没有明说的设计哲学转变：VSM 时代"要不要给这盏灯投影"重新变成了一个重要的美术/技术决策（UE4 时代由于有距离场和预阴影兜底，这个决策被弱化了）。建议项目建立光源分级规范：主角附近关键光 = 全质量 VSM + SMRT；中景光 = 降 LOD bias 或不投影；远景光 = 不投影只用接触阴影。最后一句"限制这些情况下的更新"呼应前文的每帧预算预告，说明 Epic 认识到失效尖峰是多光源场景的主要不稳定因素。</p></div>
+</article>
+<div class="sec-h"><h3>### 低多边形几何体</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲的是"阴影明暗界限问题"（shadow terminator problem），这是所有高精度可见性查询共有的经典问题，不是 VSM 独有，但在 VSM 下更明显。理解它需要分清两种法线：几何法线（三角形真实朝向）和着色法线（顶点法线插值，用于平滑外观）。两者的不匹配是低模 + 平滑着色的必然产物。这个瑕疵是精度提升带来的“新暴露”而非“新产生”：传统低分辨率管线里它一直存在，只是被阴影模糊掩盖了。因此在 VSM 项目里，所有高曲率加平滑法线的资产都需要重新过一遍质量检查，旧资产直接迁移最容易出问题。因此内容侧的高曲率检查应放在资产入库阶段，而不是等场景组装完再回头修。</p></div>
+<article class="para">
+<div class="zh"><p>具有高曲率和平滑法线的低多边形几何体可能会出现瑕疵。 这就是"阴影明暗界限问题"。 该问题也出现在光线追踪和其他高精度可视性查询中。 问题源于真正的低多边形几何体和"平滑"着色法线之间的不匹配：在明暗界限附近的区域，其中一些面在几何上处于阴影中，但非几何着色法线略微面向光线。 通常使用基于法线的阴影查找偏差来处理此瑕疵。 使用虚拟阴影贴图时，这种特定瑕疵可能会更加明显，因为默认情况下它们设置为通过Nanite几何体提供细节丰富的阴影。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把这个经典问题的机制讲透。想象一个用八棱柱近似、但顶点法线被平滑处理的圆柱：着色时它看起来是光滑的圆柱（因为法线插值），但实际几何是八个平面。在明暗界限（terminator，即受光面与背光面的分界）附近，问题出现了：一个三角形可能几何上已经背对光源（几何法线背离光），但插值后的着色法线仍然略微朝向光源——于是它的着色结果计算出了漫反射光照（N·L &gt; 0），却被阴影查询判定为"几何上被自己遮挡"（从光源看，这个表面点被自己的其他部分挡住或刚好在边界上）。结果是：本该有光照的地方是黑的，明暗界限处出现一条硬黑带或阶梯状瑕疵。传统阴影贴图用"法线偏差"（normal bias，沿法线方向把采样点抬离表面）来缓解——把采样点沿平滑法线偏移，让它"离开"几何表面，从而不再被自己遮挡。文档说 VSM 下更明显，原因很有意思：VSM 的分辨率高到能精确还原几何边界，传统低分辨率阴影贴图反而因为模糊把这条瑕疵"糊"掉了；高分辨率让几何真相暴露无遗。这是一个典型的"精度提升暴露新问题"的案例——问题一直存在，只是以前看不见。也正因为如此，这个问题在硬件光追阴影里同样存在（文档也点明了），凡是高精度可见性查询都躲不开。解决方案的优先级文档给得很清楚：加几何 &gt; 加 LOD &gt; 调偏差，下一节展开。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>解决此问题的最佳方法是增加这些对象/区域中的多边形数量。 限制几何法线和着色法线之间的差异可以减少或消除这些瑕疵，而不会对其他地方的阴影质量产生负面影响。 使用Nanite添加更多多边形很简单，而且通常开销很低。 如果有问题的对象不能使用Nanite，添加更高的细节级别（LOD）通常也很有效，因为当对象靠近摄像机时，这些瑕疵大多可见。 如果无法添加更多几何体，可以使用<code>r.Shadow.Virtual.NormalBias</code>（默认值为0.5）调高虚拟阴影贴图的法线偏差。 请注意，仅当无法进行内容调整时才应考虑这一点，因为它会对整个场景的阴影质量产生负面影响，尤其是对于精细细节区域而言。 在下面的示例中，在摄像机附近的低多边形球体上可以看到瑕疵，背景中有细节丰富的几何体。 将多边形添加到球体可以改善瑕疵，而不会对背景中的细节地形产生负面影响。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>解决方案的优先级值得展开，因为它体现了 Nanite 时代内容制作思路的转变。方案一，加多边形：在 UE4 时代这是奢侈品（要考虑内存、顶点预算、绘制成本），在 Nanite 时代几乎免费（Nanite 的成本与三角形数量弱相关，它按屏幕误差裁剪集群），所以"用几何解决问题"从下策变成了上策——这是 Nanite 对内容管线的一个深刻改变：现在可以给圆柱、管道、圆角、机械零件足够的段数，不再需要用低模 + 平滑法线伪装高曲率。方案二，LOD：只对不能上 Nanite 的资产（蒙皮、WPO），而且瑕疵主要出现在近处，所以只要 LOD0/LOD1 段数够，远处糊了也看不出来。方案三，NormalBias：全局变量，从 0.5 往上调。它的原理是把阴影采样点沿法线抬离表面，副作用是把整个场景的阴影都"推离"接触面，精细细节（格栅、薄板、树叶边缘）的阴影会变虚、漏光增加，而且抬离量在大倾角表面上按 1/cos 放大，远处的地面阴影会出现明显的"脱底"。所以文档的警告是对的：这是最后的手段，全局代价换取局部修复。实践中更精细的做法是在材质或资产层面处理（用几何修正或局部折中的法线设置），而不是动全局变量。丢失的例图（低模球 vs 高模球，背景是精细地形）演示的正是这个取舍：修好球的同时不伤背景。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>低多边形几何体 ／ 使用默认法线偏差（0.5） 较高的多边形几何体 ／ 使用默认法线偏差（0.5） 调整偏差也可以改善瑕疵，但背景几何体中的精细细节明显丢失。 低多边形几何体 ／ 使用默认法线偏差（0.5） 低多边形几何体 ／ 使用较高法线偏差（1.0）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>丢失的这组对比图演示了两个修复方向的效果差异，值得在头脑里补全。第一组：低模球（黑带瑕疵）vs 高模球（干净），两者背景地形都正常——证明"加几何"是无损修复，问题局部化，不扩散。第二组：默认偏差 0.5（球有瑕疵，背景细节清晰）vs 调到 1.0（球瑕疵减轻，但背景精细细节明显变虚）——证明"调偏差"是全局性代价，为了修一个球牺牲了整个场景的阴影锐度。这组图的启示是：VSM 的高分辨率是一把双刃剑，它让"精度敏感型"瑕疵（terminator、几何误差）变得可见，同时让"全局参数"（bias）的副作用也被放大。在传统低分辨率管线上，把 bias 从 0.5 调到 1.0 几乎看不出来；在 VSM 下立竿见影。所以 VSM 项目的材质/资产规范里应该明确：凡是高曲率 + 平滑法线的资产必须过 terminater 检查（旋转到明暗界限处看有没有黑带），不要依赖事后调全局偏差。顺带一提，r.Shadow.Virtual.NormalBias 之外还有 slope-scale 相关的深度偏差变量，文档没有展开，说明 Epic 希望用户只动这一个，把其他偏差逻辑留在引擎内部自动处理。</p></div>
+</article>
+<div class="sec-h"><h3>### 虚拟现实</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>VR 的支持缺口根源在 clipmap 的单中心设计。定向光的 clipmap 以"摄像机"为中心嵌套，而 VR 有两只眼睛、两个视锥、两个深度缓冲；页分配以哪个视点为准就成了问题。文档只说了"右眼视角可能存在定向光源瑕疵"，没有展开技术原因，但可以推断：主视口（左眼或合成中心）驱动页分配，右眼的像素需要的页可能未被分配，导致右眼阴影缺失或走回退逻辑产生噪点。这是典型的"为单视口设计的系统遇到多视口"的适配问题，与 TAA/TSR 在 VR 中的困境同源。对 VR 项目，目前的现实选择是：定向光阴影关闭或降级（比如用距离场阴影），或者接受右眼瑕疵，或者等官方支持。</p></div>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图尚未完全支持虚拟现实。 右眼视角可能存在定向光源瑕疵。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>补充一下 VR 场景的额外约束，文档没讲但对决策重要。VR 对阴影系统的要求与其他平台截然不同：帧预算极低（90/120Hz 即 8~11ms 全帧）、双目渲染、且对延迟极其敏感。VSM 的缓存模型在 VR 里还有一个特殊问题——头部转动是持续且不可预测的，"揭示新页"的频率远高于普通第一人称游戏，页尖峰更容易出现；而且 VR 无法用动态分辨率或降帧来掩盖尖峰（会立即引起晕动）。所以即使官方将来修复了右眼瑕疵，VSM 在 VR 里的成本模型也需要重新验证。当前的实际建议：VR 项目沿用传统阴影方案（CSM + 距离场 + 预烘焙的组合在 VR 里仍然是主流），或者在定向光上关闭 VSM（如果版本支持按光源控制），只对局部光尝试。这里也呼应了平台清单里没有 Quest/移动 VR 的现实——VSM 的硬件门槛本身就排除了移动 VR。</p></div>
+</article>
+<div class="sec-h"><h3>### 分屏</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>分屏问题的根源与 VR 同类：VSM 的深度分析和页分配假定"一个视口、一个主深度缓冲"。分屏意味着两个视口、两个深度缓冲，页需求是两者的并集，而深度分析管线需要明确知道"分析哪个深度"。文档说"测试极少、性能可能很差"，这是诚实的说法：分屏本身就是小众配置，Epic 不会为它优先优化。实践中如果项目必须做分屏（体育游戏、竞速双人），要么切回传统阴影贴图，要么接受两人各占一半屏幕时页需求翻倍、性能不保证的现实。值得记录的是这类"单视口假设"在 UE5 的多个新特性里都存在（Lumen、TSR 也有类似限制），说明 UE5 的高端渲染栈整体是围绕单视口设计的，做分屏项目应该在立项阶段就做技术验证。</p></div>
+<article class="para">
+<div class="zh"><p>分屏受到的测试极少，性能可能很差。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这一条只有一句话，但结合前文的"虚拟现实"一节可以看出一个模式：所有依赖"屏幕深度驱动页分配"的机制，在多视口场景下都会遇到"哪个视口说了算"的问题。VSM 的深度分析是全管线的基础（页需求、mip 选择、粗页之外的按需分配），两个视口意味着两套需求要合并，页池要同时服务两边，而分配策略（谁优先、怎么去重）没有公开设计。对项目方的启示是：分屏不只是"性能减半"的问题，而是整个渲染架构的假设被打破，需要专项测试。如果分屏是硬需求，建议早期就做原型验证（开 VSM + 分屏跑一个代表性场景，看页统计和视觉质量），不要等到后期才发现要回退到传统阴影——回退传统阴影在 UE5 里意味着整个光照管线的行为变化（固定光源、Lumen 配合等都要重新验证）。</p></div>
+</article>
+<div class="sec-h"><h3>### 物理页池溢出</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>页池是 VSM 的显存核心，这一节讲溢出的症状、诊断和调整。这是全篇唯一给出"显存账"入口的地方，但官方依然没有给出默认值和计算公式——解析里会把这笔账算出来。理解页池的关键是把"虚拟空间无限"和"物理空间有限"分开：虚拟 16K 是地址空间，物理页池才是真金白银的显存；溢出就是物理空间被分配光了的状况。这是全篇唯一触及“VSM 的显存账”的地方，但官方没有给出默认值与计算公式，解析里补了估算方式（页数 × 每页字节数）。建议把页池使用率纳入项目的性能监控指标，在接近阈值时主动降级，而不是等棋盘格出现再被动处理。</p></div>
+<article class="para">
+<div class="zh"><p>使用虚拟阴影贴图，场景中所有光源的所有阴影数据都存储在一个大型纹理池中。 默认池大小受<strong>阴影（Shadow）</strong>可伸缩性设置的影响，但在具有许多使用高分辨率阴影的光源的场景中，该大小可能需要进行调整。 或者，可能需要在低端硬件上进行调整，以节省显存。 你可以使用<code>r.Shadow.Virtual.MaxPhysicalPages</code>调整页池大小。 相继使用<code>r.ShaderPrintEnable 1</code>和<code>r.Shadow.Virtual.ShowStats 2</code>启用虚拟阴影贴图统计数据，即可显示有关当前页池使用情况的统计数据。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段透露了两个重要架构事实。第一，"所有光源的所有阴影数据存于一个池"：这是全局统一的物理页池，不是每光源独立分配——好处是分配灵活（忙的光源多用、闲的光源少用），坏处是相互影响（一盏大范围灯可能挤占其他灯的页，导致远处的灯突然没阴影）。第二，"默认池大小受可伸缩性设置影响"：说明池大小是按画质档位预设的，Epic 已经按典型场景做了标定，但极端场景（大量高分辨率局部光）会超出预设。r.Shadow.Virtual.MaxPhysicalPages 就是手动调整入口，需要上调或下调都指向同一个现实：显存预算必须显式管理。这里把账算出来（文档没给的）：一个物理页是 128×128 像素，按 16bit 深度算约 32KB、按 32bit 算约 64KB；如果池大小是 16384 页（一个可能的 Epic 档量级），对应显存就是 0.5GB~1GB——这还是不含页表、间接缓冲、粗页等辅助结构的净深度数据。所以 VSM 在 1080p~4K 项目里通常要为阴影预留数百 MB 到 1GB 级别的显存，这是它相比传统阴影贴图（几 MB 到几十 MB）最大的新增成本，也是"低端硬件需要调小"的直接原因。调小的代价不是线性的画质下降，而是可能出现下一段讲的棋盘格损坏——所以正确流程是先看统计（Allocated 是否逼近 Max），再决定调大还是减灯。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图屏幕上统计数据的当前页池使用示例。 <strong>页（Page）</strong>的数量超过<strong>最大页数（Max Pages）</strong>将导致损坏，有时会在视觉上呈现为棋盘格图案，或者阴影损坏或丢失。 如果阴影页池溢出，则会在屏幕和日志中显示警告。 超出页池中页数导致虚拟阴影贴图损坏的示例。 如果发生这种情况，请增加页池的大小，或降低阴影分辨率，或减少投射虚拟阴影贴图的光源的数量。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>溢出的表现值得描述清楚，因为它是 VSM 最有辨识度的故障模式：棋盘格图案。机制是页分配失败后，着色器查页表命中"无效"或错误条目，采样得到的深度是垃圾值或默认值，于是在页粒度（128×128 的块）上出现规律性的黑白相间——因为页是规则网格，失效也按网格出现，看起来就是棋盘格。这是诊断 VSM 显存问题的"指纹"：看到棋盘格就查页池，几乎不用怀疑别的。另外两种表现（阴影损坏、阴影丢失）则是分配失败后某些页被放弃渲染的结果，可能是整块区域没阴影，也可能是深度错误导致阴影形状诡异。三条缓解措施的成本差异很大：增加页池（显存直接涨，可能挤压其他资源）；降低阴影分辨率（LOD bias 调粗，减少每像素需要的页数，画质换稳定）；减少投影光源数量（最彻底，直接砍需求，但要美术确认哪些灯可以不投影）。工程上的正确做法是把 Allocated/Max 比值纳入性能监控（打包版本里用 ShowStats 或日志），超过阈值就自动触发降级（比如动态提高 LOD bias 或关掉远处光源的投影），而不是等棋盘格出现——这是一个典型的需要防御性编程的资源系统。</p></div>
+</article>
+<div class="sec-h"><h3>### 场景捕获</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>场景捕获（SceneCapture2D/Probe 等）导致缓存全灭是一个明确的实现 bug，官方没有给出修复时间，只给了临时规避手段。这一节的诊断描述写得很有辨识度，值得把症状特征记下来，遇到时能秒判。它的具体表现是一组反常组合：Invalidated 低 + Cached 低（甚至为 0）+ 页全红，既不是失效过多、也不是缓存命中率低，而是缓存机制被整体旁路。遇到这个组合应先怀疑场景捕获类 Actor，再排查其他失效源，能省下大量时间。若确认由捕获导致，短期规避是降低捕获频率或改用其他方案（如预渲染贴图），同时关注后续版本的修复说明。</p></div>
+<article class="para">
+<div class="zh"><p>在一些情况下，场景捕获组件会导致整个虚拟阴影贴图缓存无效化。 具体症状经常体现为 _失效（Invalidation）_ 在虚拟阴影贴图数据中变低，但是缓存的页数也变少（甚至变为零），同时缓存的页面会全部变成红色。 发生该情况，试着隐藏或移除场景中的场景捕获Actor来验证它们是否在导致这个问题。 目前，在发生该问题的时候只能停用场景捕获。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段描述的症状组合很特别，值得解读。正常的"缓存效率低"表现是 Invalidated 高（大量页失效重画）；而这里说的是反向组合：Invalidated 低 + Cached 低（甚至 0）+ 页全红。这个组合的含义是：缓存机制实质上被旁路了——页不是"失效后重画"（那会体现为 Invalidated 高），而是"根本不被视为缓存"（每帧都当作新页清空渲染，体现为 Cleared 高、Cached 为 0）。也就是说场景捕获让引擎认为整个页池的内容都不可信，走的是"无缓存"路径。推测机制（文档没说）：场景捕获会触发一次额外的场景渲染（从另一个视角），如果它的渲染路径与主视口共享或污染了页缓存的一致性状态（比如捕获视角也触发深度分析和页分配，但用的是不同的视口参数，导致页的版本号/帧号校验失败），引擎就只能整体作废。危害在于：场景捕获常用于小地图、后视镜、监控屏、反射捕获，一旦触发就是全局性能崩溃，而且症状（画面还正常，只是帧率掉）不直观。排查方法文档给了：隐藏/移除捕获 Actor 看是否恢复。规避手段目前只有停用捕获，或者把捕获频率降到极低（每 N 秒一次，减少失效频率——但这仍是官方未确认的做法）。这个问题也提醒我们：VSM 的缓存一致性依赖"场景渲染状态稳定"，任何额外渲染路径（捕获、编辑器预览、调试视口）都可能破坏它，未来版本应该会加白名单机制。</p></div>
+</article>
+<div class="sec-h"><h3>### 材质</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>材质限制一节很短，但指出了一个容易被忽视的静默失败：次表面轮廓（subsurface profile）和次表面传输（transmission）不被支持，使用这些的材质会被当作不透明遮蔽。注意"静默"二字：引擎不会报错，只是阴影效果不对——半透明或透光的物体投出实心黑影。这在植被（树叶透光）、皮肤（耳朵透光）、蜡烛（透光）等资产上最明显。静默失败是这一节的关键词：没有报错、没有警告，只有“阴影比预期实”。这类问题往往在验收后期才被发现，建议把透光类资产（植被、皮肤、灯罩、蜡烛）的阴影表现列入美术验收清单，提前拦截。</p></div>
+<article class="para">
+<div class="zh"><p>仅支持简单的次表面材质。 尚未实现次表面轮廓和传输。 如果某个材质正在使用它们，则该材质将被遮蔽，就好像它不透明一样。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>展开说一下这个限制的技术背景和规避思路。阴影贴图本质上只存深度（一个不透明度的特例：全不透明），要表达"部分透光"需要存不透明度/透射率信息（这正是学术界的 Transmittance Shadow Maps、Deep Shadow Maps、以及矩阴影贴图的应用场景）。VSM 页只存单层深度，结构上无法表达部分透光，所以任何"透光"语义在阴影投射时都被当作不透明处理。"简单次表面"（如 Preintegrated Skin 的近似模型）不需要阴影参与透光计算（它只在着色时做近似），所以能用；而 Subsurface Profile（屏幕空间散射）和 Transmission（折射/透射）需要阴影系统理解透光率，VSM 给不了。规避手段：一是接受实心阴影（很多风格化项目无所谓）；二是用 Masked 材质开洞（镂空阴影贴图可以部分解决树叶类的透光感，代价是阴影锯齿）；三是给关键资产做"假透光"（在阴影区域手动加亮，或用光照函数/后处理补）；四是对极重要的透光物体（蜡烛、灯罩）单独用不投影 + 自定义光照模拟。文档没有说的是：Masked 材质的阴影在 VSM 下的表现（是否支持 dither/clip 的阴影投影、分辨率如何），这需要实测，因为阴影贴图的 masked 投影在传统管线里就是老大难，VSM 的页结构对它的支持情况没有公开说明。</p></div>
+</article>
+<div class="sec-h"><h3>### 阴影分辨率</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>这一节讲 VSM 的数学上限：分辨率不是无限的，虚拟 16K 是硬边界。三个耗尽场景各有明确的几何原因——掠射角（投影锯齿）、超大局部光（16K 覆盖不住）、极窄视野（clipmap 级别密度不够细）。这一节的价值在于它承认了阴影贴图的百年老问题（从 Williams 1978 的原始论文起，投影锯齿就是阴影贴图的固有缺陷）在 VSM 里依然存在，只是被推后了。这一节是对整个阴影贴图技术路线的诚实评价：VSM 提高的是“分辨率预算的分配效率”，而不是“分辨率需求的上限”。极限掠射角与超大光源仍会触顶，内容侧要主动避开最坏情况，而不是指望引擎在极端条件下仍然稳定。</p></div>
+<article class="para">
+<div class="zh"><p>与传统阴影贴图相比，虚拟阴影贴图的分辨率显著提升，但浅光源角（或投影锯齿）和非常大的局部光源可能耗尽可用的虚拟分辨率。 根据几何体的表面，这可能会呈现为盒状阴影和偏差问题。 定向光源裁剪图不太容易耗尽分辨率，但非常窄的摄像机视野最终也会耗尽这些分辨率。 阴影贴图的投影锯齿并没有简单的解决方案。 即使使用虚拟阴影贴图，也必须注意避免最坏的情况，并平衡分辨率和性能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把三个耗尽场景的数学算清楚。第一，浅光源角（低角度太阳）下的投影锯齿：当受光表面与光线方向几乎平行时（比如低角度阳光下的地面），一个屏幕像素在光源空间里对应一条很长的纹素带，需要的阴影分辨率按 1/cosθ 发散；θ 接近 90° 时任何有限分辨率都失效，表现为地面上的条纹状阴影锯齿（shadow acne 的近亲）或"盒状"阶梯阴影。这是 Williams 1978 年提出阴影贴图时就写明的固有问题，四十多年来所有方案（透视阴影贴图、PSSM、LiSPSM、SDSM）都是在"重新分配纹素"上做文章，没有根治。VSM 的贡献是把可用的分辨率上限提高了几个数量级，让"大多数角度下够用"，但极限角度仍然失效。第二，超大局部光源：前文算过，16K 每面覆盖 500 米半径时纹素尺寸到厘米级，阴影必然糊；clipmap 是定向光专属，局部光没有。第三，极窄视野：clipmap 的 mip 选择按"屏幕像素对应的世界尺寸"来选，FOV 很窄时每个像素对应的世界尺寸极小（长焦镜头），需要的分辨率超过最内级 clipmap 的 16K 上限，于是阴影分辨率跟不上了——这是长焦/望远镜/狙击镜视角下的实际问题。文档的结论很克制："没有简单的解决方案"。这其实是对整个阴影贴图技术路线的诚实评价：VSM 解决的是"分辨率预算的分配效率"，不解决"分辨率需求的发散性"；后者只有改变采样方式（比如光线追踪的逆方差采样）才能缓解。</p></div>
+</article>
+<div class="sec-h"><h3>### 贴图检查警告</h3><span class="sec-h-en"></span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>最后这一节讲的是构建/光照系统的误报，属于"VSM 与旧工具链的兼容性缝隙"。两条例子都指向同一个原因：光照烘焙系统的状态判断逻辑还是按旧阴影体系写的，没有更新到 VSM 语义。这类问题不影响运行时性能，但会干扰内容生产的判断（该不该重建光照），所以官方专门列出。两条警告的误报方向相反（一条该报不报、一条不该报乱报），恰好说明这是旧工具链未跟上新语义的迁移期问题。项目侧应建立自己的光照验证清单来补位，尤其是固定光源间接光照过时的静默情况，靠引擎警告是等不到提示的。团队内部清单比引擎警告更可靠，这也是 VSM 迁移期最实际的一条工程建议。</p></div>
+<article class="para">
+<div class="zh"><p>虚拟阴影贴图会导致出现一些不准确的贴图检查警告：</p>
+<ul><li>启用虚拟阴影贴图时，<strong>光照需要重建（Lighting need to be rebuilt）</strong>的消息不会显示，即使不使用 Lumen全局光照和反射 功能，实际上也可能需要重建光照。 虽然启用了虚拟阴影贴图的固定直接光照是动态的，但仍然烘焙固定间接光照。</li><li>可以忽略关于<strong>预阴影（preshadow）</strong>的警告，因为它们在使用虚拟阴影贴图时不相关。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这两条警告的误报方向相反，很有意思。第一条是"该报不报"：光照需要重建的判定依赖"固定光源的阴影状态是否与烘焙时一致"，而 VSM 时代固定光源的直接光照是动态的，引擎的脏标记逻辑追踪不到需要的东西，于是警告消失了——但固定间接光照还是烘焙的，如果静态几何体或间接光照相关设置变了，确实需要重建，却没有提示。后果是间接光照过时（漏光、颜色不对）而没有警告，这种静默过时很难排查（画面看起来"哪里不对"却说不出原因）。实践建议：VSM 项目里要建立手动重建光照的流程（比如在静态几何体改动后主动重建并检查），不要依赖警告。第二条是"不该报乱报"：preshadow 警告来自旧的预阴影系统，VSM 下预阴影已不存在，警告纯属遗留逻辑的误报，可以放心忽略。这两条合起来反映了一个迁移期的普遍现象：新渲染特性上线后，围绕它构建的工具链（构建系统、光照验证、错误检查、资产验证器）需要时间跟上，期间会出现各种假阴性和假阳性，需要团队自己建立验证清单。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>（全篇完。以上为 Epic 官方中文文档《虚幻引擎中的虚拟阴影贴图》全文逐段解析；原文文字完整保留于各 ZH 段，专家解析见各 EX 段。）</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>收尾做一个全篇技术定位总结，方便读者把这份文档放进更大的技术坐标系。VSM 的本质是三个已验证技术的正交组合：（1）虚拟资源管理（来自虚拟纹理，id Tech 5 的 MegaTexture 开创的"页表 + 物理池 + 按需驻留"范式），（2）GPU-driven 渲染（来自 Nanite 的合并软件光栅与 GPU 剔除，Siggraph 2021 公开），（3）屏幕空间反推需求（来自延迟渲染的深度分析，与 SDSM/延迟分割同类思想）。它没有发明新的阴影采样算法（SMRT 本质是 PCSS 的变体），而是重新组织了"阴影数据的产生与消费方式"——这是典型的系统级创新：单点技术都不新，组合起来解决了一个此前无解的问题（高分辨率 + 大开放世界 + 可控成本 + 时间稳定）。它取代的不只是 CSM，而是整个"按光源移动性×几何体静态性切分的阴影补丁矩阵"，代价是把复杂度从"烘焙管线"转移到了"缓存一致性管理"——于是内容生产的重心从"如何烘焙"变成了"如何不动"。与硬件光追阴影的关系是分工而非替代：VSM 是全场景默认的廉价高精度方案，光追是关键光源的升级项；SMRT 可以看作 VSM 向光追靠拢的中间形态（用阴影贴图模拟光线步进）。真正可能取代它的路线是全动态光追阴影（配合硬件 BVH 的持续改进），但短期内显存与带宽成本使其无法成为默认；在此之前，VSM 是"虚拟化一切"这一 UE5 设计哲学在阴影领域的最完整体现。</p></div>
+</article>
+</section>
+  </main>
+</div>
+
+<footer class="foot">
+  <a href="index.html">← 返回收录书架</a> · 收录精读系列 · 译文与解析仅供学习交流 · 原文版权归原作者所有
+</footer>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  var topBtn = document.getElementById('top-btn');
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement;
+    var p = h.scrollTop / (h.scrollHeight - h.clientHeight || 1);
+    bar.style.width = (p * 100).toFixed(2) + '%';
+    topBtn.classList.toggle('on', h.scrollTop > 600);
+  }, {passive:true});
+  topBtn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  // 目录高亮
+  var items = Array.prototype.slice.call(document.querySelectorAll('.toc-item'));
+  var secs = items.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  function spy(){
+    var y = window.scrollY + 140, idx = 0;
+    for (var i = 0; i < secs.length; i++){ if (secs[i] && secs[i].offsetTop <= y) idx = i; }
+    items.forEach(function(a, i){ a.classList.toggle('now', i === idx); });
+  }
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+
+</script>
+</body>
+</html>

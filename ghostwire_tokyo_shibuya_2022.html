@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>《幽灵线：东京》的涩谷是如何构建的</title>
+<style>
+:root{
+  --ink:#1c2126; --ink2:#4a525a; --paper:#fbfaf7; --card:#ffffff;
+  --accent:#0e6f63; --accent-soft:#eef6f4; --accent-line:#cfe4e0;
+  --amber:#8a6d1f; --amber-soft:#faf6ea;
+  --line:#e5e1d8; --code-bg:#f4f2ec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",-apple-system,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:99;transition:width .1s}
+.back-shelf{position:fixed;top:12px;left:14px;z-index:97;background:var(--card);color:var(--accent);
+  border:1px solid var(--line);border-radius:99px;padding:5px 14px;font-size:13px;text-decoration:none;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);opacity:.92}
+.back-shelf:hover{opacity:1;background:var(--accent-soft)}
+@media print{.back-shelf{display:none}}
+#top-btn{position:fixed;right:22px;bottom:26px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+  background:var(--card);color:var(--accent);font-size:18px;cursor:pointer;opacity:0;pointer-events:none;transition:.25s;z-index:98;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#top-btn.on{opacity:1;pointer-events:auto}
+
+/* ---------- 封面 ---------- */
+.cover{background:linear-gradient(160deg,#0d3b36 0%,#0e6f63 55%,#16917f 100%);color:#fff;padding:72px 24px 60px}
+.cover-inner{max-width:880px;margin:0 auto}
+.cover-kicker{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.85;margin-bottom:14px}
+.cover h1{font-size:52px;margin:0 0 6px;font-weight:800;letter-spacing:.04em}
+.cover-sub{font-size:20px;opacity:.92;font-weight:300;margin-bottom:22px}
+.cover-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:99px;
+  padding:4px 14px;font-size:13px}
+.cover-note{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:12px;
+  padding:18px 22px;font-size:15px;line-height:1.9}
+.cover-note a{color:#ffe9a8}
+.tiny{font-size:12.5px;opacity:.8}
+
+/* ---------- 布局 ---------- */
+.layout{max-width:1240px;margin:0 auto;padding:0 20px;display:flex;gap:34px;align-items:flex-start}
+#toc{position:sticky;top:0;width:250px;flex:0 0 250px;max-height:100vh;overflow-y:auto;padding:34px 0 40px;
+  font-size:14px;border-right:1px solid var(--line)}
+.toc-head{font-weight:700;color:var(--ink2);letter-spacing:.2em;font-size:12px;margin-bottom:12px}
+.toc-item{display:block;color:var(--ink2);text-decoration:none;padding:6px 12px;border-radius:8px;line-height:1.5;
+  border-left:2px solid transparent}
+.toc-item:hover{background:var(--accent-soft);color:var(--accent)}
+.toc-item.now{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+#content{flex:1;min-width:0;padding:30px 0 60px;max-width:860px}
+
+/* ---------- 章节 ---------- */
+.chapter{margin-bottom:70px}
+.ch-head{border-bottom:2px solid var(--accent);padding-bottom:10px;margin:26px 0 8px}
+.ch-en{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.ch-head h2{margin:2px 0 0;font-size:30px;font-weight:800}
+
+.sec-h{margin:38px 0 4px;padding-left:12px;border-left:4px solid var(--accent)}
+.sec-h h3{margin:0;font-size:21px}
+.sec-h-en{font-size:12.5px;color:var(--ink2);opacity:.75}
+
+/* ---------- 段落卡 ---------- */
+.para{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 26px 18px;margin:20px 0;
+  box-shadow:0 1px 3px rgba(30,30,30,.04)}
+.zh{font-size:17px;line-height:2.05;color:var(--ink)}
+.zh p{margin:10px 0}
+.zh ul,.zh ol{margin:8px 0 8px 4px;padding-left:22px}
+.zh li{margin:5px 0}
+.ex-sub{margin:14px 0 4px!important;font-weight:700;color:var(--accent)}
+.orig{margin:0 0 12px;border:1px dashed var(--line);border-radius:10px;background:#fcfbf8}
+.orig summary{cursor:pointer;padding:7px 14px;font-size:13px;color:var(--ink2);user-select:none}
+.orig summary:hover{color:var(--accent)}
+.orig-body{padding:4px 16px 14px;font-size:14px;line-height:1.85;color:#5a626a;
+  font-family:Georgia,"Times New Roman",serif}
+.ex-card{margin-top:16px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;
+  padding:14px 20px 12px;font-size:15.2px;line-height:1.95;color:#22333a}
+.ex-title{font-weight:800;color:var(--accent);font-size:14px;letter-spacing:.08em;margin-bottom:6px}
+.ex-card p{margin:8px 0}
+.ex-card ul,.ex-card ol{margin:6px 0 6px 2px;padding-left:20px}
+.ex-card li{margin:4px 0}
+.formula{font-family:"Cambria Math",Georgia,serif;text-align:center;background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;margin:10px auto;font-size:16px;overflow-x:auto}
+
+/* ---------- 插图 ---------- */
+.fig-plate{margin:26px 0;text-align:center}
+.fig-plate img{max-width:100%;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.07)}
+.fig-plate figcaption{font-size:13px;color:var(--ink2);margin-top:8px}
+
+/* ---------- 参考文献 ---------- */
+.ref-list{padding-left:0;list-style:none;counter-reset:ref}
+.ref{counter-increment:ref;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 20px;margin:12px 0}
+.ref-txt{font-family:Georgia,serif;font-size:14.5px;color:#3c444c}
+.ref-txt::before{content:counter(ref)" · ";font-weight:800;color:var(--accent)}
+.ref-cmt{margin-top:8px;font-size:14.6px;color:var(--ink);background:var(--amber-soft);border-left:3px solid #d9c98a;
+  padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.9}
+
+.foot{text-align:center;color:var(--ink2);font-size:13px;padding:26px 16px 40px;border-top:1px solid var(--line);margin-top:30px}
+a{color:var(--accent)}
+code{background:var(--code-bg);border-radius:5px;padding:1px 6px;font-size:.92em;
+  font-family:Consolas,"Courier New",monospace}
+
+@media (max-width:1080px){
+  #toc{display:none}
+  .layout{display:block}
+  .cover h1{font-size:38px}
+}
+
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<a class="back-shelf" href="index.html" title="返回收录书架">← 收录书架</a>
+<button id="top-btn" title="回到顶部">↑</button>
+
+<header class="cover">
+  <div class="cover-inner">
+    <div class="cover-kicker">UNREAL FEST EXTREME 2022 SUMMER · gamemakers.jp 文字稿</div>
+    <h1>《幽灵线：东京》的涩谷是如何构建的</h1>
+    <div class="cover-sub">いかにして『Ghostwire: Tokyo』の渋谷は構築されたのか · 日文原稿精读</div>
+    <div class="cover-meta"><span class="chip">奥川刚（Tango Gameworks）</span><span class="chip">2022</span><span class="chip">Unreal Fest 文字稿</span></div>
+    <div class="cover-note">Tango 用 UE4 把 4 公顷涩谷 1:1 复刻进游戏的开发谈：城市资产管线、地标与密度控制、性能取舍。注意本篇偏世界构建，阴影与 GI 只是其中环节；日文原文、中文翻译、专家解析三段式。</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="toc"><div class="toc-head">目录</div><a class="toc-item" href="#intro">导语</a>
+<a class="toc-item" href="#dev-environment">本作的开发环境</a>
+<a class="toc-item" href="#shibuya-structure">孕育涩谷背景的结构</a>
+<a class="toc-item" href="#vfx">表现怪异的 VFX 制作</a>
+<a class="toc-item" href="#vat">VAT 的运用</a>
+<a class="toc-item" href="#weather">改变街道气息的天气表现</a>
+<a class="toc-item" href="#mpc">用 MPC 控制庞大物量的表现</a>
+<a class="toc-item" href="#niagara">由 Niagara 实现的表现</a>
+<a class="toc-item" href="#global-title">全球化作品独有的考量</a>
+<a class="toc-item" href="#video-hdr">视频表现与 HDR 对应</a>
+<a class="toc-item" href="#closing">结语</a></nav>
+  <main id="content">
+<section class="chapter" id="intro">
+<header class="ch-head"><span class="ch-en">Introduction</span><h2>导语</h2></header>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">Epic Games Japan主催のUnreal Engine大型勉強会「UNREAL FEST EXTREME 2022 SUMMER」が、2022年5月23日（月）から5月27日（金）までの日程で開催されました。最終日となる5月27日には、Tango Gameworks（ゼニマックス・アジア株式会社）（以下、Tango）のプログラマー奥川 剛氏が登壇し、「Ghostwire: Tokyo™開発事例：ノンリニアな東京の街を表現する」の講演が行われています。講演では、極めて精巧で美しい渋谷の街並みを再現する際のヒントや最適化のポイントなどが語られました。</div></details>
+<div class="zh"><p>由 Epic Games Japan 主办的 Unreal Engine 大型学习会「UNREAL FEST EXTREME 2022 SUMMER」于 2022 年 5 月 23 日（周一）至 5 月 27 日（周五）举行。在最后一天 5 月 27 日，Tango Gameworks（ZeniMax Asia 株式会社）（以下称 Tango）的程序员奥川刚登台，进行了题为「Ghostwire: Tokyo™ 开发案例：表现非线性的东京街区」的讲演。讲演中讲解了重现极为精巧而美丽的涩谷街景时的要领与优化要点等内容。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【背景定位】本文是 gamemakers.jp 对 Unreal Fest EXTREME 2022 Summer 最终日讲演的报道文字稿。讲演人是 Tango Gameworks（隶属 ZeniMax/Bethesda 体系的东京工作室）的程序员奥川刚——注意讲演视角是程序/引擎侧，全文落点都在资产管理、流送与运行时成本上，美术表现只在解释"为什么这么工程化"时才出现。</p>
+<ul><li>时间点很关键：2022 年 5 月，UE5 已于当年 4 月正式发布，而本作是 UE 4.27 项目——整场讲演带着"UE4 世代最后一批大作如何榨干旧管线"的色彩，后文会看到从 UE5 反向移植 TSR 这类典型的过渡期操作。</li><li>讲演标题强调"ノンリニア（非线性）"，即玩家在都市中自由选择路线而非线性关卡推进，这直接决定了后文"不能让远处建筑消失""不能有读盘"等一切设计前提。</li></ul></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">夜の街で、超常現象を追う一人称視点アクションADV『Ghostwire: Tokyo™』。今年2022年に発売された本作の魅力は、何と言ってもUnreal Engine 4（以下、UE4）で精細に作られた渋谷の街そのものを探検できることでしょう。レイトレーシングなどの技術をビジュアルに活かすことで、生々しく怪異に満ちた街を体験できることが特徴となっています。</div></details>
+<div class="zh"><p>《Ghostwire: Tokyo™》是一款在夜晚的街道中追查超常现象的第一人称动作 ADV。于 2022 年发售的本作，其魅力毋庸置疑在于能够探索用 Unreal Engine 4（以下称 UE4）精雕细琢出的涩谷街区本身。通过把光线追踪等技术运用到画面上，玩家可以体验到真实生动、又充满怪异的街道，这是本作的一大特征。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【题材对渲染的真实含义】第一人称＋涩谷全景复刻的组合意味着：视点常处于街道尺度（近距离大量小物件、招牌、街灯），又随时可能登上高楼俯瞰全城（超远距全景）——同一世界要在两个极端视距下同时成立，这正是后文"阶层关卡 LOD"与"夜景着色器"两条技术线的共同根源。</p>
+<ul><li>值得注意的缺口：报道只笼统说"将光线追踪等技术用于画面"，讲演（本篇覆盖范围内）并未展开 RT 的具体类别（反射？阴影？GI？）与开销占比。就本作公开资料而言 RT 属于 PC 高端配置的增强项，阅读时不要默认"全程 RT 渲染"——此点无法从本报道文本确认，属于讲演未展开的时代局限。</li><li>"夜の街"三个字同样是技术前提：夜景＋自发光招牌海恰恰是屏幕空间 GI（SSGI）最难啃的输入分布，后文逐段会看到团队为此打的补丁。</li></ul></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本講演では都市型でノンリニアな世界を表現するヒントや最適化のポイント、効率的なVFXの作成方法などが語られました。</div></details>
+<div class="zh"><p>本讲演介绍了表现都市型非线性世界的要领、优化要点以及高效的 VFX 制作方法等内容。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【本篇范围】导语预告的三块内容——非线性都市的表现要领、优化要点、高效 VFX 制作——分别对应本篇的各章节；上半部分覆盖"导语＋开发环境＋涩谷背景结构（阶层关卡 LOD／ProxyMesh／夜景着色器／实例关卡／建筑 Actor／导航网格）"，VFX 制作方法等讲演后半内容随后半部分展开。</p>
+<ul><li>"都市型非线性世界"在本讲演里被拆成一组具体工程问题：2100 个子关卡的流送、远处建筑的可见性、夜间远距光照、重复内容的量产、超大 Nav Mesh 的构建策略。读者可以带着"每个技术决策都对应其中一条"的地图去读后文，这比记住任何单个结论都有价值。</li></ul></div>
+</article>
+</section>
+<section class="chapter" id="dev-environment">
+<header class="ch-head"><span class="ch-en">Development Environment</span><h2>本作的开发环境</h2></header>
+<div class="sec-h"><h3>本作的开发环境</h3><span class="sec-h-en">本作の開発環境</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节交代讲演的"地基"：引擎版本（UE 4.27）、中间件选型（Wwise／InstaLOD／FaceFX／Oodle Texture）、引擎改造原则（只做不破坏兼容性的优化）以及从 UE5 反向移植 TSR。它的价值在于给后文一切技术判断标定时代坐标——这是一支手里有引擎源码、却坚持"可随时并版本"路线的团队；后文出现的引擎级定制（如 Body Setup 不生成选项）与官方优化直接受益（ProxyMesh 提速 10 倍以上），都建立在这个前提之上。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">講演冒頭では本作の開発環境について解説。使用されたのはUE 4.27で、ミドルウェアとしてオーディオオーサリングツールのWwiseやメッシュ処理のInstaLOD、その他にFaceFXやOodieTextureなどが使われています。</div></details>
+<div class="zh"><p>讲演开头对本作的开发环境进行了解说。使用的是 UE 4.27，中间件方面使用了音频制作工具 Wwise、mesh 处理的 InstaLOD，此外还使用了 FaceFX 和 Oodle Texture 等。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【中间件组合的信号】Wwise（音频制作与运行时）在日厂几乎是标配，UE4 自带音频管线当年难以满足混音/总线需求；InstaLOD 是网格简化/重拓扑商业工具——本作没有叙述用引擎内工具做 LOD 生成，结合后文"ProxyMesh 一律 Jenkins 批量生成"，可推测 InstaLOD 参与了代理网格的简化环节（讲演未明说，此为推测）；FaceFX 负责口型/面部动画；Oodle Texture 负责 BCn 贴图的磁盘重打包压缩。</p>
+<ul><li>原文笔误：原文写作「OodieTexture」，应为 Oodle Texture（Epic 自 UE4.26 起集成、UE5 默认启用的贴图压缩方案）。原文如此，ZH 按正确名称译出。</li><li>Oodle Texture 在这里出现并非闲笔：它直接支撑后文"包体 20GB 以下"的结论——贴图通常占都市题材包体的大头，重打包可在几乎不损画质的条件下显著压低贴图磁盘占用，与程序化建筑共同构成小包体的两根支柱。</li></ul></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">エンジンの改造については最適化を中心に行っていますが、互換性が無くなるような改造はしていないとのこと。開発途中にUE5が発表されてからは、Epic Gamesと新たにライセンス契約を結んだのちにチームの描画班がUE5からTSR（Temporal Super Resolution：プラットフォームに依存しない高品質なビルトインのアップサンプリング システム）を独自にポーティング（移植）しています。</div></details>
+<div class="zh"><p>关于引擎改造，本作以优化为中心进行，据说没有做会导致兼容性丧失的改造。自开发中途 UE5 发布之后，团队与 Epic Games 重新签订了授权协议，随后由团队的渲染班组把 UE5 的 TSR（Temporal Super Resolution：不依赖平台的高品质内置上采样系统）独立移植了过来。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【改造原则是版本策略而非技术决策】"不做破坏兼容性的改造"意味着与官方 UE4.27 的 diff 保持最小，才能持续合入 Epic 的修复与优化——后文 ProxyMesh 生成"恰逢 Epic 侧优化、提速 10 倍以上"正是这一策略的直接回报：若引擎分叉过深，官方优化根本进不来。对一切长周期项目，这条纪律的优先级常被低估。</p>
+<p class="ex-sub">【TSR 反向移植】TSR 是 UE5 的内置时序上采样，UE4.27 官方并无此物。渲染班组把它移回 UE4 的动机很实际：主机 4K 输出下 TAAU 质量不足，而 DLSS/FSR1 等硬件方案各有绑定或画质局限，TSR 平台无关、与引擎 TAA 的 history 体系同构，移植路径可控。这也解释了后文"提高远景分辨率"的手段来源。</p>
+<ul><li>局限提示：把 UE5 渲染特性回移到 4.27，意味着要自行维护它在旧后处理链上的正确性（history 失效处理、抖动模式等）；讲演未展开移植深度与调校细节，属信息缺口。</li></ul></div>
+</article>
+</section>
+<section class="chapter" id="shibuya-structure">
+<header class="ch-head"><span class="ch-en">Structure Behind Shibuya&#x27;s Background</span><h2>孕育涩谷背景的结构</h2></header>
+<div class="sec-h"><h3>孕育涩谷背景的结构</h3><span class="sec-h-en">渋谷の背景を生み出す構造</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>承上启下的总纲小节：先给出世界的数据规模与骨架——2100 个子关卡、共享空间并用实例关卡；再交代两项"不用"的负空间决策——不用 Landscape、不做光照烘焙（GI 交给 SSGI）；最后落到承载这一切的流送框架 World Composition。后文四个小节（阶层关卡 LOD、实例关卡、建筑 Actor、Nav Mesh）全部是在这份骨架上做局部优化，理解本节的取舍才能理解后面每条技术线的动机。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作の背景には複合的な階層が設定されています。サブレベルは2100に及びますが、たとえばコンビニの店内のように複数の箇所で共有している場所はインスタンスのレベルを併用している場合も多いそうです。</div></details>
+<div class="zh"><p>本作的背景设定了复合式的层级。子关卡数量多达 2100 个，而像便利店店内这样在多个地点共享的场所，据说很多情况下还会同时并用实例关卡。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】2100 个子关卡意味着把涩谷按街区/功能切成极细的流送单元，挂在 World Composition（关卡流送框架）的持久关卡之下。UE4 的 WC 按每关卡的距离阈值做加载/卸载，粒度越细，"玩家身边该在的都在、不该在的不占内存"的贴合力越好；2100 这个量级（据讲演）说明团队宁可承担关卡管理复杂度，也要换流送精度。</p>
+<p class="ex-sub">【设计动机】都市内容重复度极高（便利店、连锁店、楼群、地下通道），细切之后很多关卡只是实例的挂载点：同一份店内资产在涩谷多处复用，资产只存一份、内存只驻一份——这正是下一小节实例关卡的主题，本段的"併用"一词已提前埋线。</p>
+<p class="ex-sub">【取舍与代价】</p>
+<ul><li>关卡数量爆炸的直接代价在编辑器与协作：谁都无法全量加载 2100 个关卡工作，必须按区域/分工局部加载（后文 Nav Mesh 段"关卡设计师只读自己负责部分在本地作业"正是此代价的实证）；</li><li>WC 的距离阈值是逐关卡配置的，2000+ 关卡的阈值调参只能靠自动化与经验规则，讲演未展开如何管理，是缺口。</li></ul>
+<p class="ex-sub">【现代对照】UE5 World Partition 把"手工拆子关卡"整个取消：单一世界按网格 cell 自动流送，配合 One File Per Actor 解决并发编辑，本节描述的两大痛点正是 WP 的立项动机；《漫威蜘蛛侠》对曼哈顿的街区 cell 流送与 City Sample（The Matrix Awakens）的 UE5 城市级示范，可对照看"细粒度城市流送"在两代引擎里的形态差异。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、本作は都市部が舞台であり、自然地形がほぼ存在しません。そのため、UE4の機能のひとつであるLandscapeは「負荷が大きいため使っていない」と語られました。さらに、常にジオメトリが変化する仕様がレイトレーシングとの相性も悪かったことも、使用しなかった理由のひとつとのこと。</div></details>
+<div class="zh"><p>另外，本作以都市为舞台，几乎不存在自然地形。因此，UE4 功能之一的 Landscape"因为负载大而没有使用"。此外，"几何体总在变化"的规格与光线追踪的相性也很差，这也是没有使用它的原因之一。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】Landscape 是 UE4 面向自然地形的高度图系统（组件化地形 Actor＋地形材质＋碰撞场）。城市地面由道路、人行道、广场等人工铺装构成——路缘、井盖、斑马线都是离散几何而非可雕刻场，用静态网格拼接在流送、LOD、材质自由度上都更贴合城市形态。弃用 Landscape 是"工具与内容错配"的清醒判断，而非引擎缺陷。</p>
+<p class="ex-sub">【"负载大"的拆解】讲演只给结论未给数据。合理解释：Landscape 的组件代理、渲染与碰撞数据在城市尺度上是"为不存在的需求付费"；它作为巨型连续几何体，也无法跟着街区子关卡一起细粒度装卸，与整个流送架构相性天然不合。</p>
+<p class="ex-sub">【与 RT 的相性】原文"常にジオメトリが変化する仕様"指的应当是他们"关卡不断加载/卸载"的世界规格（此处为笔者解读）：RT 的顶层加速结构（TLAS）需随场景几何增删而重建/refit，流送越频繁代价越高。讲演对此一句带过，未展开机制与数据，属于时代局限下的口头说明。</p>
+<p class="ex-sub">【现代对照】"城市不用 Landscape"的判断在 UE5 依然成立：City Sample 的城市地面走 Houdini 生成的 mesh 路线，《漫威蜘蛛侠》的曼哈顿同样是 mesh 城市而非地形场。Landscape 的主场（自然荒野）在本作中缺席，结论至今没有翻案。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作はゲーム内で時間が経過するため、ライトベイクを行っていないとのこと。さらにストリームの負荷も考えた結果、GIはSSGI（スクリーンスペースグローバルイルミネーション）を採用しています。</div></details>
+<div class="zh"><p>据称，本作中游戏内时间会推移，因此没有进行光照烘焙。进一步考虑到流送的负载，GI 采用了 SSGI（屏幕空间全局光照）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【为何不能烘焙】游戏内时间推移＝昼夜循环，而 Lightmass 烘焙 GI 的前提是光照静态；时间轴连续变化时 lightmap 只能按时刻离散烘焙，烘焙时长与贴图内存都不现实——"不烘焙"不是省事，是唯一解。</p>
+<p class="ex-sub">【为何是 SSGI】UE4 时代动态 GI 的菜单其实很短：LPV（质量差）、SDF GI（实验性、几何受限）、SSGI（4.22 起内置、SSAO 家族的屏幕空间近似）、RTGI（需 DXR 级硬件）。原文还点明了第二条约束：流送负载——烘焙 GI 意味着每个关卡背着 lightmap 贴图集流送，2100 个子关卡的 lightmap 内存压力比几何本身更致命；SSGI 零烘焙资产、零额外流送，天然适配流送世界。</p>
+<p class="ex-sub">【局限（讲演未展开，必须点破）】SSGI 只能以屏幕内像素作二次光源：屏幕外的亮面不贡献、镜头一转间接光就变、disocclusion 处噪点。本作夜景靠海量招牌自发光——恰是 SSGI 最吃力的输入分布（高频小面积发光体）。后文"夜景着色器（G-Buffer 重打光）"本质就是给 SSGI 擦屁股的补丁：远处补不了的真光用假光画上去。</p>
+<p class="ex-sub">【为何不用 RTGI】讲演完全未讨论。按 2022 年硬件现实，RTGI＋夜城海量发射面在主机上不可行；团队选"SSGI＋美术化重打光"是当时的理性解。</p>
+<p class="ex-sub">【现代对照】UE5 Lumen 正是为"动态时间＋无烘焙"而生，The Matrix Awakens 用它渲染夜城；《鸣潮》（Unreal Fest Tokyo 2025 讲演）甚至在 UE4.27 上落地了 Lumen 轴心的 RTGI——本作痛点后来被"引擎换代"与"自行回移"两条路线分别解决。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">プレイヤーは箱庭型の広域マップを移動するため、一歩進むたびに近くのレベルのデータをのみを読み込み、ある程度プレイヤーから距離が離れたレベルから消していく形式を採用。序盤のシーンなどを除き、本編はほぼワールドコンポジションで完結しているため、レベルを移動するときのロードはほとんど入っていません。</div></details>
+<div class="zh"><p>由于玩家在箱庭式的广域地图中移动，本作采用了如下形式：每前进一步就只读取附近关卡的数据，并从离玩家达到一定距离的关卡开始逐步删除。除开场等部分场景外，本篇流程几乎完全在 World Composition（关卡流送框架）内完成，因此移动关卡时几乎不会产生读取。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这段描述的就是 World Composition 的标准形态：持久关卡为壳、子关卡各带距离阈值，玩家移动时引擎按距离决定加载/卸载。关键信息在后半句：除开场等少数场景外，整个本篇都在同一个 WC 世界里完成，关卡间移动没有读盘——"非线性都市"的体验承诺靠它兑现。</p>
+<p class="ex-sub">【设计动机与配套】要做到几乎无读盘，光有流送不够，还必须让一切跨区域移动都发生在同一世界内部：后文"门交互传送进室内"特意做成"移动到地下实例关卡"而非切换关卡，正是在维护这条承诺；读盘只允许藏在暗转等叙事掩护下。</p>
+<p class="ex-sub">【取舍】WC 是距离驱动的粗粒度机制：每子关卡一个阈值、整块进整块出，没有视锥/遮挡感知。城市里大量室内/地下内容在玩家路过其上方时也会被距离拉进来，只能靠实例关卡共享与阈值调参压成本。讲演未给关卡常驻数量、内存水位等数据，流送压力无法复核，是缺口。</p>
+<p class="ex-sub">【时代注脚】UE4 WC 还有两个隐性痛点：无 OFPA（一文件一 Actor）导致并发编辑受限；HLOD 需自建（本作正是自建了"阶层关卡 LOD"）。这两点恰是 UE5 World Partition 的立项动机：网格化 cell 流送＋Data Layers＋OFPA＋内置 HLOD 一揽子取代 WC。</p>
+<p class="ex-sub">【现代对照】《漫威蜘蛛侠》曼哈顿的街区 cell 流送与严格 IO 预算管理、《看门狗：军团》的伦敦都市流送，与本节同属"预切分＋规则驱动"世代，可与 WP 对照看设计哲学变迁。</p>
+<ul><li>原文「データをのみを読み込み」语序异常（应为「のみを読み込み」），EN 照抄，按正确语序翻译。</li></ul></div>
+</article>
+<div class="sec-h"><h3>借助阶层关卡 LOD 实现细腻的都市表现</h3><span class="sec-h-en">階層レベルLODによる、細やかな都市表現</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>全篇技术含量最高的核心小节：讲"阶层关卡 LOD"——被团队自述为"关卡版 HLOD"的自研远景系统。从高楼俯瞰全城是本作招牌体验，普通 LOD"远处就删"的逻辑与它正面冲突，于是有了这套以关卡流送状态（而非距离）驱动的多层 ProxyMesh 换装体系，以及为解决其副作用而生的夜景重打光着色器。ProxyMesh 统合、Jenkins 批量生成、地标手工 LOD 特例，全部挂在这条线上。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">都市型の広い背景をUE4で表現するために、階層レベルLODを設定しています。これは一言で言えば「レベル版HLOD」と解説されています。本作は高いビルから都市を見渡す体験が特徴。都市の景観を損なわないようにするため、通常のLODのようにプレイヤーから遠くにあるオブジェクトを消すのではなく、どんなに遠くても全ての建物が見えるようにしています。</div></details>
+<div class="zh"><p>为了用 UE4 表现都市型的广阔背景，本作设定了阶层关卡 LOD。据介绍，一言以蔽之这就是"关卡版 HLOD"。本作的特征体验是从高楼上俯瞰都市。为了不破坏都市景观，本作并没有像普通 LOD 那样把离玩家较远的对象删掉，而是做到了无论多远所有建筑都可见。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制定位】UE4 的 HLOD 官方形态是：把一批流送关卡的几何离线合并成代理网格，玩家离远时整组换装，把数千次 draw call 压到个位数。"レベル版HLOD"的自述说明他们借的是同一思想、自研的实现，且目标函数完全不同——见下。</p>
+<p class="ex-sub">【关键差异：目标不是省，而是全可见】常规 LOD/HLOD 的第一目标是性能（远处的删掉/换粗），本作的第一目标是天际线完整性：从高楼俯瞰时任何一栋楼消失都会被看穿。因此层级设计以"任意距离下所有建筑都有代表几何"为硬约束，性能收益来自"远处一张合并网格顶替几千张"这件事本身。</p>
+<p class="ex-sub">【方法论】这是本讲演最值得学的片段：先钉死体验（登高俯瞰、无读盘、夜景活力），再让 LOD/流送/GI 策略全部围着体验倒推，而不是拿现成系统套。后文夜景着色器同样是"体验倒推"的产物。</p>
+<p class="ex-sub">【代价预告】"远处全可见＋合并网格"必然牺牲三样：合并体的 UV/多边形质量（自动生成不优化）、远处真实光源不存在（夜景问题）、合并资产的生产成本（Jenkins 两周）。后文三段分别对应这三个代价。</p>
+<p class="ex-sub">【现代对照】UE5 World Partition 把 HLOD 变成内置流程（merged mesh/impostor 分层），但"保天际线"仍需手工策略；真正消解此问题域的是 Nanite——mesh 常驻、LOD 连续，配合 Virtual Shadow Maps 让远景阴影成立，City Sample 是完整示范。UE4.27 时代这些皆不可用，自研是必然。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">これを実現する階層レベルLODは、主にワールドコンポジションを監視しながら、担当する地区のレベルとマージされたメッシュの表示切替の管理を階層的に行うアクターとなっています。</div></details>
+<div class="zh"><p>实现这一点的阶层关卡 LOD，主要是一个一边监视 World Composition、一边对自己负责地区的关卡与被合并 mesh 的显示切换进行阶层式管理的 Actor。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制拆解】这个自研 Actor 的工作方式：获取 World Composition 中各子关卡的加载状态 → 对自己负责的地区做"是否全部就绪"的聚合判断 → 就绪则下放到细一级层级，否则显示粗一级的合并网格。注意它与教科书 LOD 的本质区别：切换条件是"数据在不在内存"，不是"玩家远不远"，距离只通过流送状态间接起作用。</p>
+<p class="ex-sub">【为什么这样设计】</p>
+<ul><li>与俯瞰体验正交：玩家在楼顶时远处关卡根本未达流送阈值，若按距离 LOD，那些楼必须显示粗模——而粗模也得存在、也得被画。按加载状态驱动后，规则简化为"有细给细、没细给粗"，一套逻辑同时覆盖街面漫游与登高俯瞰。</li><li>避免真空期：细模型未流送到位时粗层仍是兜底，不会出现"细的没来、粗的已卸"的空洞。</li></ul>
+<p class="ex-sub">【代价与未答之问】</p>
+<ul><li>抖动：关卡加载边界上来回横跳时层级会跟着切换，是否做了迟滞/粘滞，讲演未提；</li><li>一致性：细层与粗层的外观差异要靠夜景重打光与远景分辨率抹平（后文）；</li><li>存储：每级都要有资产，引出下一段的 ProxyMesh 生成管线。</li></ul>
+<p class="ex-sub">【现代对照】UE5 WP 内置 HLOD 同样由 cell 流送状态触发（未加载区域显示其 HLOD），思路与本作一致，可视作这套自研方案的官方化；Nanite 则把"层级"内化进 mesh 格式（cluster 常驻＋连续 LOD），配合 VSM 后远景不再需要独立换装体系——本作自研系统解决的每一项，在 UE5 世代都换了承担者。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">レベルを丸ごとProxyMesh化し、1メッシュ、1マテリアルに統合</div></details>
+<div class="zh"><p>将整个关卡 ProxyMesh 化，统合为 1 个 mesh、1 个材质</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这一行是幻灯片标题，点出统合的最终形态】"整个关卡 ProxyMesh 化、1 mesh、1 材质"每个数字都有分量：</p>
+<ul><li>1 mesh：一个街区的全部建筑合并为单个静态 mesh，draw call 与状态切换从数百上千次降到 1 次量级；合并体共享一个包围盒，远景的剔除判断也简化为一次。</li><li>1 材质：这是真正的技术门槛——合并几何容易，合并材质意味着生成时要做贴图 atlas 化：把各建筑的基础色/法线/自发光（夜景依赖的就是它）烘焙进一张大贴图，UV 全部重映射。做不到 1 材质，draw call 就回去了。</li></ul>
+<p class="ex-sub">【代价清单】atlas 化必然降采样（远景可接受，近景不可——所以这套只在层级上端使用）；合并后丧失逐对象剔除，粗粒度遮挡带来过度绘制/顶点浪费；自动 UV 展开不保证建筑硬表面的接缝与平直（两段之后"细节发粗糙"的根源）。</p>
+<p class="ex-sub">【与中间件呼应】结合前文 InstaLOD 的存在，代理网格的简化与重拓扑大概率由它承担（推测，讲演未明说）；atlas 烘焙与合并则应是自研 Jenkins 管线的部分。</p>
+<p class="ex-sub">【现代对照】UE5 Build HLOD（merged mesh）做同一件事，官方化后依然逃不掉 atlas 降采样与剔除粒度两条代价；真正的范式更替是 Nanite：mesh 内部按 cluster 剔除，"合并省 draw call vs 拆开保剔除精度"的两难被消解，也不再需要为远景单独维护一套代理资产。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">完成したメッシュの周辺区画を更にまとめてProxyMesh化を行うことで、階層的なレベルを作成。ここに含まれたレベルがすべて読み込まれていない場合はまとまったメッシュが表示され、読み込まれた場合は一段階細かい階層が表示される仕組みとなる</div></details>
+<div class="zh"><p>通过将已完成 mesh 的周边街区进一步汇总进行 ProxyMesh 化，创建出阶层化的关卡。若此处所含关卡尚未全部读取，则显示汇总后的 mesh；若已读取，则显示细一级的阶层——这就是其机制</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制：金字塔式合并】已代理化的相邻街区再次合并，形成地区级、更上级的代理——"阶层"即来源于此：底层＝单个子关卡的代理网格，上层＝多个街区的再合并体，一棵与城市空间划分同构的树（类比 clipmap/四叉金字塔）。显示规则是纯"与"逻辑：本层所辖关卡全部就绪才下钻，任一缺席就停留在上层合并体。</p>
+<p class="ex-sub">【为什么必须多级】只有一级时代价明确：若全城只剩一张超级合并网格，街面漫游时近处街区的像素浪费与贴图流量不可接受。多级让"当前视野所需的细度"总能找到匹配层级——街面看本街区细层、楼顶看城市粗层，各取所需。</p>
+<p class="ex-sub">【与流送的耦合】层级状态完全由 WC 驱动，美术不需要为远景单独摆任何东西——远景表现是流送状态的函数，数据（关卡）与表现（代理层级）单一事实源，运维上不会出现"远景忘了摆代理"类失配。</p>
+<p class="ex-sub">【未展开处】层级树怎么划（固定网格还是手工区域）、每级的阈值策略、层间切换的 pop 抑制手段，讲演均未细说；pop 问题后来靠"提高远景分辨率"与夜景重打光的均匀光照部分掩盖（见后文）。</p>
+<p class="ex-sub">【现代对照】UE5 WP HLOD 支持多级层级并按 cell 流送状态自动换装，与本段机制几乎一一对应——本作等于在 UE4 上提前手搓了 WP HLOD 的核心体验；Nanite＋VSM 则是另一条路：远景细节与阴影直接由原 mesh 按需供给，不再有"层级换装"。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">こうしたメッシュはJenkinsで一括生成されています。開発当初はすべてのメッシュを作り直すのに2週間ほど掛かっていました。そんな中、タイミングよくEpic Games側で最適化が入ったおかげで10倍以上も生成が早くなり、24時間以内に完了するようになったそうです。</div></details>
+<div class="zh"><p>这类 mesh 由 Jenkins 批量生成。开发当初，重新生成全部 mesh 大约需要两周时间。其间恰逢 Epic Games 方面加入了优化，多亏于此生成速度提升了 10 倍以上，据称已能在 24 小时以内完成。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制与量级】代理网格由 Jenkins 批量生成——合并、atlas 烘焙、简化全部走 CI，而非编辑器内人工触发。量级复核：全量重建从约 2 周（14 天）到 24 小时内完成，约 14 倍，与原文"10 倍以上"自洽（据讲演；提速来自 Epic 侧对引擎相关路径的优化，具体优化点未说明）。</p>
+<p class="ex-sub">【为什么这是全系统最关键的一环】"阶层关卡 LOD"的命门不在显示逻辑，而在资产再生产速度：美术改一栋楼、LD 挪一个街区，所有受影响层级的代理网格都要重生成。若全量要两周，城市结构在项目中期就会被"改不起"冻结，设计迭代被禁锢；压到 24 小时（夜间跑完）后，迭代粒度从"月"降到"天"，开放世界才可能持续演进。这也与第一节"不做破坏兼容性的改造"呼应：Epic 的优化能进来，恰因引擎没分叉太深。</p>
+<p class="ex-sub">【取舍】原文说的是"すべてのメッシュを作り直す"（全量重建）的时间，未提及增量生成——每晚全量跑是最简单的正确性保障，代价是 CI 算力；24 小时贴着夜跑，说明也没有多少增量化的余量。</p>
+<p class="ex-sub">【现代对照】UE5 Build HLOD 同样是大批量离线任务，实践中依旧靠命令行＋CI（官方文档即给自动化流程），本段做法至今成立；City Sample 把这类离线烘焙整体交给 Houdini＋资产农场，属于同一问题的不同工具链。Jenkins 这类通用 CI 在日厂渗透率高，本作是标准实践样本。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">メッシュを自動生成する手法ではUVやポリゴン数が最適化されず、都市のディテールが荒くなってしまう問題がありました。階層的なLODモデルを手動ですべて修正するのは莫大な作業量がかかるため、遠距離でも目立つランドマーク的な建物だけを手動で作成してLODから除外する方法で対応したとのことです。</div></details>
+<div class="zh"><p>采用自动生成 mesh 的手法时，存在 UV 和多边形数得不到优化、都市细节变得粗糙的问题。由于手动修正所有阶层化 LOD 模型需要莫大的工作量，因此据说采用了只手动制作在远距离也显眼的地标性建筑、并将其从 LOD 中排除的方法来应对。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【问题本质】自动代理生成（网格简化＋自动 UV＋atlas）对建筑这类硬表面并不友好：简化算法不理解窗格、招牌、楼层线是必须保真的特征，自动 UV 展开也不保证立面贴图的平直与密度一致——结果就是远景细节发糊发糙。这是所有离线 HLOD 方案的通病，非本作独有。</p>
+<p class="ex-sub">【应对策略的经济学】手动修所有层级 LOD 的工作量与 2100 个子关卡成正比，必然失控；团队的解法是给"手工质量"设硬预算：只对远距离也显眼的地标做手工 LOD，并将其从自动 LOD 体系排除。本质是把有限的美术精英产能集中到感知收益最高的少数资产上——与下一段"全游戏不足 10 个"互为表里（据讲演）。</p>
+<p class="ex-sub">【现代对照】Nanite 从根上取消"LOD 建模"（输入高模即得连续 LOD），"手工 LOD 预算分配"问题在 UE5 世代消失；在仍需手工 LOD 的项目里，"hero 资产手工、背景程序化"的分配哲学（如《漫威蜘蛛侠》的地标与普通楼）依然通用。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">「渋谷カゲリエ」など、ランドマーク的な建物のみを手動作成。どうしても外せない建物のみ対応しており、ゲーム全体では10個もないとのこと。「際限なく手を加えていたら、収拾がつかなくなるため」という作業量の問題から、こうした対応となった</div></details>
+<div class="zh"><p>只对「渋谷カゲリエ（涩谷 KAGERIE）」等地标性建筑进行手动制作。仅对无论如何都不能省略的建筑做了对应，据说全游戏还不到 10 个。出于"如果无止境地打磨就会收拾不了"这样的工作量问题，才采取了这种做法</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【图注性质】此为幻灯片说明，展示手工 LOD 的实际对象。"渋谷カゲリエ"应为游戏内原创地标设施名——"カゲリエ"疑为"かげり"（微光、阴翳）配上法语风后缀的自造词，语义指向"光影"，与本作怪异/幽光的世界观一致（推测，讲演未说明具体所指；ZH 保留日文原名并括注读音转写）。</p>
+<p class="ex-sub">【数字的分量】"全游戏不足 10 个"（据讲演）是刻意维持的小预算：手工 LOD 每多一个，维护链（源模型、LOD 链、夜景重打光校对、后续改动同步）就长一截。奥川那句"无止境打磨就收拾不了"是制作管理层面的清醒——技术方案能否落地，常取决于有没有勇气对范围说不。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">（左）ワールドコンポジションの実レベル　（右）階層レベルLOD込み</div></details>
+<div class="zh"><p>（左）World Composition 的实际关卡　（右）含阶层关卡 LOD</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【幻灯片对比图注】左侧是 World Composition 的真实数据视图：涩谷被切分为大量子关卡（流送单元）；右侧是叠加阶层关卡 LOD 后的渲染结果：远处建筑依旧全员在场。这张图的价值在于把"数据层"与"表现层"的分离讲透——左边的关卡切分服务于内存与流送，右边的观感说明切分没有以牺牲天际线为代价，两者通过"加载状态驱动的层级换装"耦合。对开发者而言这是本讲演核心架构的一图流总结：先按工程需要把世界切碎，再用代理层级把视觉上"缝"回去。能否在自己的项目里画出这样一对图，本身就是流送架构是否清晰的自检。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">階層レベルLODを適応することで、遠景でもすべての建物を表示することができ、本作のリアルな渋谷の雰囲気を作り出すことに成功しました。しかし、本作では夜の渋谷も描かれます。今度は遠景のライトのデータが読み込まれず、建物が暗く見えてしまうライティングの問題が発生しました。</div></details>
+<div class="zh"><p>通过适用阶层关卡 LOD，远景也能显示所有建筑，成功营造出了本作写实的涩谷氛围。但是，本作还要描绘夜晚的涩谷。这次又发生了远景光源数据未被读取、建筑看起来发暗的光照问题。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【阶段小结＋新问题的引出】阶层关卡 LOD 达成"远景全员可见"，但夜景立刻暴露其软肋：街灯等动态光源只存在于已加载的子关卡里，远处代理网格上没有任何光源数据——远处楼体因此整体发暗。这不是 bug 而是架构后果：代理化时能带走的只有烘焙进贴图的自发光，带不走需要运行时计算的解析光源。</p>
+<ul><li>原文笔误：「適応」应为「適用」。EN 照抄，ZH 按正确含义译出。原文如此。</li></ul>
+<p class="ex-sub">【问题的普遍性】任何"远处用合并代理"的方案都会撞上这堵墙：真光源数量与光照计算只对已流送内容成立，区别只在补法——本作的解法是把光照从流送体系解耦，改在屏幕空间伪造（后两段）。</p>
+<p class="ex-sub">【现代对照】UE5 世代的对应解法是让 GI 与阴影体系自身够得着远景（Lumen 的 far field、VSM 的远距级联/页面），属于"让真数据到达远处"；本作当时的思路是"远处干脆不追求真"——两种世代哲学的分界点正在此处。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">LOD自体はエミッシブの機能が効いているため、建物の窓自体は光っている。しかし、遠景で見て効果的かというと、街灯などの光がまだ足りない状況</div></details>
+<div class="zh"><p>LOD 本身的自发光功能仍然生效，因此建筑的窗户本身在发光。但要说在远景下是否足够有效——街灯等的光还处于不足的状态</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【精确的问题定位】这两句把"暗"拆成两半：窗户亮（代理网格 atlas 里烘焙的自发光仍在工作）、街道暗（运行时街灯不在场）。这个区分在工程上极重要——它说明缺失的不是发光体的表示，而是光源对周围几何的照射贡献；因此补法应当是"给远处几何补照射"，而不是"往贴图里塞更多发光"。后文夜景着色器正是按这个诊断开的药方：以街灯为模板、自下而上给远处立面补光。</p>
+<p class="ex-sub">【顺带的工程启示】"atlas 里保住自发光"也解释了前文"1 mesh 1 材质"的合并管线为什么必须烘焙 emissive 通道——夜景观感的第一层保障在生成 ProxyMesh 时就已埋下，屏幕空间的重打光只是第二层。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">このため、夜景シェーダーを作成。ポストプロセス上でGバッファを参照したリライト処理を行っている</div></details>
+<div class="zh"><p>为此，制作了夜景着色器。在后处理中对 G-Buffer 进行参照，执行重打光（relight）处理</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这一行是幻灯片标题】点出解法的三个关键词：夜景着色器、后处理、G-Buffer 参照的重打光。</p>
+<p class="ex-sub">【机制】在 post process 阶段（UE4 的 Post Process Material 可访问 G-Buffer：世界法线、基色、场景深度等），用深度＋逆视图投影重建像素世界坐标，再以程序化的"街灯光"模型（自下而上的方向与衰减、沿街分布的假光源）对远处像素直接着色。它不产生真实阴影、不进入 UE4 延迟光照管线，本质是"按 G-Buffer 特征给屏幕上的远景像素重新上光"的一次全屏近似。</p>
+<p class="ex-sub">【设计动机的漂亮之处】把"光照数据的可用性"从流送约束中解耦：远处关卡不在内存、真光源不存在都没关系——重打光只需要屏幕上已有的像素信息，与流送状态完全正交。一次全屏 pass 的成本，换掉"为远景维护真实光源数据"的不可能任务，是"用屏幕空间伪造换流送规模"的典型工程哲学。</p>
+<p class="ex-sub">【技术血缘】下一段会交代：这套东西原本是为妖怪表面材质开发的——角色材质层的重打光技巧被复用到全屏后处理，跨内容类型的技术复用在管线型团队里是高价值习惯。</p>
+<p class="ex-sub">【局限】无阴影无遮挡正确性（可用深度比较做粗略遮挡）；与 SSGI 的关系是叠加而非统一（假光不进 GI 再反弹）；通常只对远景启用以免污染近景真光——启用范围与切换细节讲演未提，属缺口。</p>
+<p class="ex-sub">【现代对照】Lumen 的屏幕/表面追踪可视为"屏幕空间重打光"的工程化、物理化版本；《漫威蜘蛛侠》把假光烘焙进 imposter/顶点色属同一目标的离线做法；《鸣潮》在 UE4.27 引入 RTGI 则是"上真家伙"的另一路线。世代不同，"远景夜光"始终是开放城市夜的硬题。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">この問題を解決するため、本作では専用の夜景シェーダーを制作して対応しています。これはポストプロセス上でGバッファを参照しながらリライトの処理を行い、LODなどが表示されている遠景に対して、街灯などを模して下から上へのライティングを行う機能です。</div></details>
+<div class="zh"><p>为解决这一问题，本作制作了专用的夜景着色器加以应对。它在后处理中参照 G-Buffer 执行重打光处理，是对正在显示 LOD 等内容的远景，模拟街灯等光源、实施自下而上光照的功能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制细化】相对幻灯片标题句，这句给出实现形态：作用对象限定为"正在显示 LOD 等的远景"，光效模板是街灯——方向自下而上，即光从路面层向立面顶部衰减。三个可推断的实现细节（据讲演语义，具体未展开）：以深度区分远近、只对远层启用；以世界法线做 N·L 式受光；以世界坐标高度做衰减曲线，复现"路灯照亮楼体下半"的城市夜景特征。</p>
+<p class="ex-sub">【为什么不做真光源】夜景涩谷的视觉主体是海量小光源（街灯、招牌、店头照明）。若让它们成为真光源，即便流送问题不存在，UE4 延迟管线的逐像素光源列表与 CSM 阴影预算也撑不住数千盏灯——伪光是唯一能同时满足"数量"与"流送"的解。取舍本质：放弃物理正确性，换取规模与稳定性。</p>
+<p class="ex-sub">【风险】远处假光与近处真光之间存在过渡带，两边模型完全不同（一边程序化衰减、一边真实光源），接缝处理讲演未提；假光不参与 SSGI 反弹、不产生阴影，画面说服力依赖自发光贴图与雾效配合掩盖。</p>
+<p class="ex-sub">【批评性注记】讲演对成本只字未提：pass 是全分辨率还是半分辨率、与 TAA/TSR 的 history 交互、与景深/雾的顺序讲究——这些恰是复用该技术时最需要的信息，报道层面无从补全。</p>
+<p class="ex-sub">【现代对照】UE5 的答案是让"真"的覆盖范围变大：VSM 让远处点光也能投影，Lumen 让远处自发光几何贡献 GI；《看门狗：军团》的伦敦夜景同样依赖海量假光与真光混合。本段方案是 UE4 约束下的局部最优，而非可直搬的现代实践。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">ポストプロセス上で独自にライティングを行うため、UE4のライティングモデルに縛られない形の都合のいいライティングとなっています（なお、もともとこれらは妖怪などを表現するためのサーフェイスマテリアル用に作ったものだったとのこと）。</div></details>
+<div class="zh"><p>由于是在后处理上独立进行光照，因此形成了不受 UE4 光照模型约束的、"怎么方便怎么来"的光照（另外，据介绍这些东西原本是为表现妖怪等而给表面材质制作的）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【"不受 UE4 光照模型约束"的技术翻译】这套光不经过引擎的延迟光照 pass——不占光源通道（Lighting Channel）、不投影、不参与 GI、不用引擎光源组件表示。收益是自由（衰减、颜色、分布完全程序化），代价是不再与任何引擎光照特性（体积雾散射、TSR 对高频发光的处理等）自动一致，全靠自行维护。</p>
+<p class="ex-sub">【出身有趣】它原是为妖怪表面材质开发的技术——给角色做程序化幽光照明——后来才被拉去承担全屏的夜景重打光。这暴露了团队的真实工作方式：着色器能力池先在角色侧练出来，再找场景侧的场景变现，比"为场景专门立项"的路径便宜得多。</p>
+<p class="ex-sub">【对照】"材质/后处理层自造光照"在无动态 GI 的世代是普遍操作；UE5 Lumen 把"任意自发光面贡献 GI"变成内建行为后，这类手搓重打光的适用面收窄，但在风格化项目（要非物理的光）里依然不可替代。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">（左）リライト前　（右）リライト後</div></details>
+<div class="zh"><p>（左）重打光前　（右）重打光后</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【幻灯片对比图注】左（重打光前）远处楼体只靠窗户自发光，街道层死黑；右（重打光后）立面出现自下而上的光渐变，街道有了"被路灯照亮"的层次。这张对比图是夜景着色器的价值证明，也是本讲演的图钉式论据：远景暗的问题不是靠"把远处关卡也流送进来"解决，而是承认"远处永远没有真光"之后的屏幕空间伪造。视觉上最该关注的是中间距离带——假光与真光的交界处，正是此类技术最容易穿帮的位置（讲演未展示该区间效果，报道亦无图可证，只能存疑）。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">夜景シェーダーを実装することで、より活気ある街並みが実現できています。ライティングによってLODのポリゴンの粗が見えてしまう問題もありましたが、これも遠景の解像度を上げることで対応しています。</div></details>
+<div class="zh"><p>通过实装夜景着色器，实现更有活力的街景。此外还出现过因光照而暴露 LOD 多边形粗糙的问题，这一点也通过提高远景分辨率来应对了。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【收益与次生问题】重打光带来活力的同时也暴露了 LOD 代理的多边形粗糙：原本远景均匀偏暗，法线瑕疵看不出来；补上带方向性与梯度的人工光照后，低精度法线与几何棱面开始显形——光照是细节的显影液。这与实时渲染的普遍经验一致：平光掩盖一切，方向光暴露一切。</p>
+<p class="ex-sub">【"提高远景分辨率"的两种读法】原文未说明具体所指：其一，提高远景的渲染分辨率（screen percentage，配合他们移植的 TSR 增强时序上采样），用更高像素密度与更好的时序重建掩盖法线瑕疵；其二，提高远景 LOD 层级的网格/贴图密度。结合前文 TSR 反向移植的存在，前者可能性更高（推测），且与"夜景着色器＋远景分辨率"作为组合拳的叙述顺序吻合。</p>
+<p class="ex-sub">【方法论启示】这是典型的补丁链：每修一个问题（远景暗）会暴露下一个（远景糙），成熟团队的标志不是一次到位，而是把补丁链走到"画面成立"为止并及时止损。</p></div>
+</article>
+<div class="sec-h"><h3>为高效构建街道而设的实例关卡设定</h3><span class="sec-h-en">効率良く街を作るためのインスタンスレベル設定</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>视角从"世界骨架"切到"内容生产"：同一套涩谷要在多处复用、数千配置物要在运行时不失控。本节给出三条互相咬合的管线——实例关卡（空间复用）、分层子关卡组装（同户型不同摆设的量产）、"程序员基底类＋原生化"的 Actor 治理（运行时成本控制），最后落到建筑 Actor 的程序化外观与包体收益。核心命题：重复内容的量产效率与运行时可预测性的平衡术。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作にはコンビニや神社といった場所が渋谷の各地に数多く配置されているため、使い回しを前提としたインスタンスレベルが運用されています。プレイヤーが対象の建物に近づくと対応したレベルが読み込まれ、離れればデータが破棄される仕組みになっています。</div></details>
+<div class="zh"><p>由于本作在涩谷各地大量配置了便利店、神社这类场所，因此运用了以重复使用为前提的实例关卡。其机制是：当玩家接近对象建筑时读取对应关卡，离开后即废弃其数据。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】实例关卡＝同一份关卡内容的多点挂载：接近时按实例流送、远离即卸载，资产与 cooked 数据只存一份。UE4.26 起引擎内置 Level Instance，本作 4.27 在版本上可用；但从下一段"作业用关卡分层注册＋管理用 Actor 打包"的描述看，他们的工作流更像自建或深度改造（讲演未指明内置还是自研，复刻时两者皆可考）。</p>
+<p class="ex-sub">【设计动机】便利店、神社在涩谷是高频复用内容：不做实例化，则资产重复制作、包体重复膨胀、内存重复驻留；实例化后"内容正确性"只需在一处保证——改一次全城生效。对连锁店这种"必须长得一样"的内容更是刚需：现实涩谷的便利店本来就是同构的。</p>
+<p class="ex-sub">【机制细节】实例的加载由玩家与挂载点的距离触发，与外层 World Composition 的距离流送叠成两级：街区块（宏观）与店内实例（微观），保证玩家在街上跑动时不被未加载的室内内容拖累。</p>
+<p class="ex-sub">【取舍】实例化要求内部标准化：同一实例的叙事/任务差异化（这家店有事件、那家没有）要在外面挂差异化数据而非改实例本身；一旦某实例需要特殊化到承载不了，就退化为普通关卡。</p>
+<p class="ex-sub">【现代对照】UE5 的 Level Instance＋World Partition＋Data Layers 把这类复用做进默认工作流；PCG 框架连"重复内容的布置"也程序化；《看门狗：军团》对伦敦 pub/地铁站等标准化空间的复用是同类实践。方向一致：把城市内容的重复性从负担变成杠杆。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">作業用レベルにインスタンスにしたいレベルとして建物の構造や配置物、街灯を層ごとにわけてサブレベルに登録。配置完了後、取得したいレベルを指定し、それらを管理するアクターを作成する</div></details>
+<div class="zh"><p>在作业用关卡中，把想要实例化的关卡按"建筑结构、配置物、街灯"分层注册为子关卡。配置完成后，指定要提取的关卡，并创建管理这些关卡的 Actor</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【工作流拆解】这是"预制体（prefab）化"的关卡版：先在作业用关卡里把目标建筑按层拆成子关卡——结构层（户型）、配置物层（货架/商品/杂物）、街灯层（光源）——注册后指定要提取的层组合，由管理用 Actor 固化为一个实例单位。</p>
+<p class="ex-sub">【设计动机】分层的本质是把"不变部分"与"可变部分"正交：户型相同摆设不同的房间（下一段）只需替换配置物层。这与软件工程"稳定抽象＋可变组合"完全同构，是把 DRY 原则应用到关卡设计的少见清晰案例。</p>
+<p class="ex-sub">【管理用 Actor】由它持有"哪些子关卡构成一个实例"的映射，运行时负责按距离装载——这层间接性让美术只面对"层"、不面对流送细节，职责切分干净。此段配图应为工具/编辑器截图，展示注册与打包步骤（本篇无图，据文字复原）。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">これにより、「間取りが同じだが、配置物が違う部屋を量産しなくてはならない」といった場合、サブレベルを差し替えるだけで部屋を量産することができます。</div></details>
+<div class="zh"><p>由此，在遇到"必须量产户型相同但配置物不同的房间"这类情况时，只需替换子关卡即可量产房间。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【收益的具体形态】"同户型、不同摆设"是城市内容的典型需求（公寓、办公室、便利店后场）。传统做法要么逐间手摆（慢），要么整关卡复制后修改——后者会在后续修改时产生 N 份分叉拷贝，维护成本随拷贝数线性增长。替换子关卡的做法让"户型"只有一份真相源、摆设层各自独立，量产时是组合而非复制。</p>
+<p class="ex-sub">【适用边界】组合式量产的约束也很明确：所有变体必须共享同一户型骨架，差异化只能发生在被替换的层内；需要动结构的差异化就超出能力范围。这与程序化生成"规则内自由、规则外无门"的边界特性一致，属同一设计谱系。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">ドアにインタラクトしてワープする室内も同じくインスタンスレベルとして作成。暗転を挟んで、個別のダンジョンに移動するときには通常の都市部ではなく地下インスタンスレベルに移動させるかたちにすることで、レベルの入れ替えではなくワールドコンポジション内での移動にしている</div></details>
+<div class="zh"><p>通过与门交互后传送进入的室内，同样作为实例关卡制作。在夹带暗转、移动到各个独立副本时，采取的不是移动到通常都市区、而是移动到地下实例关卡的形式，从而把"关卡替换"变成了 World Composition 内部的移动</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"门＝传送点"：交互→暗转→把玩家移动到室内实例关卡；独立副本（dungeon）同理，被安置在"地下实例关卡"里。关键在最后一句：移动始终发生在同一个 World Composition 世界内部，是"世界内坐标变换"而不是"卸载当前关卡/加载新关卡"的关卡切换——于是不需要 loading screen，兑现了导语"几乎无读盘"的承诺。</p>
+<p class="ex-sub">【为什么不做无缝室内】开放都市里若室内外无缝，玩家在门口时两套内容同时驻留、同时渲染，流送窗口与光照/曝光管理（室内外 GI 状态、后处理体积切换）复杂度陡增；门传送把两种状态彻底解耦——任意时刻只激活一态，各自按最优调校。暗转是最古老也最可靠的掩护手段：把传送藏在演出里。</p>
+<p class="ex-sub">【代价】牺牲"隔着玻璃看室内""门缝漏光"的一体感，玩家明确知道门是边界。以本作"怪异都市"的气质论，这种隔离感反而与世界观相容。</p>
+<p class="ex-sub">【谱系与对照】"门即关卡边界"自《上古卷轴》以来就是开放世界标准件，《漫威蜘蛛侠》《看门狗：军团》的室内同样走传送/实例。UE5 的 WP＋Data Layers 让"室内外同世界共存"在数据层容易得多，但性能稳妥性使传送门至今仍是默认解。</p>
+<ul><li>术语注：原文"ダンジョン"指游戏内的独立探索关卡，ZH 译作"副本"。</li></ul></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">続いて、さまざまな配置物について解説。本作においてピュアなブループリントはほぼ存在せず、ビルや神社といった建物から樹木に至るまで、大小問わずプログラマーが用意した基底クラスを使用、もしくは完全ネイティブ化されています。</div></details>
+<div class="zh"><p>接下来对各类配置物进行解说。本作中几乎不存在纯蓝图（Blueprint）：从大楼、神社等建筑到树木，无论大小，都使用程序员准备的基底类，或已被完全原生化（C++ 化）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"纯蓝图几乎不存在"有两层含义：配置物统一继承程序员准备的 C++ 基底类（行为与性能特征由基类保证）；另有内容走完全原生化（Blueprint Nativization，把蓝图编译为 C++）。UE4 的 nativization 是官方功能但限制良多（部分节点不支持、编译时间长、调试别扭），完全原生化通常只用于量大面广的简单类。</p>
+<p class="ex-sub">【为什么要消灭纯蓝图】运行时成本的结构：蓝图 VM 解释执行（比原生慢一个数量级量级）、蓝图类的反射元数据与加载/反序列化开销、GC 压力。单份蓝图无所谓，乘上"城市里数千个配置物 Actor"就变成帧率与内存问题，还有蓝图资产引用链导致的加载雪崩风险。把行为收进 C++ 基类后，蓝图退化为"数据容器＋外观配置"，成本模型回到可控区间。</p>
+<p class="ex-sub">【治理维度】更重要的是质量管理：下一段"非程序员写的代码莫名其妙能跑"靠流程解决（程序员收尾），本段的基底类策略靠架构解决（不给出错的土壤）——两层缺一不可。</p>
+<p class="ex-sub">【时代局限与后世走向】UE4 nativization 在 UE5.0 即被官方弃用（不支持新特性、维护成本高），Epic 转而提升蓝图本身性能并倡导"C++ 基类＋薄蓝图子类"——本作实践恰与后来官方结论合流，可视作超前于官方的工程直觉。现代项目标准姿势：Actor 逻辑 C++ 化、蓝图只做配置与拼装、Editor Utility 承担工具层。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">ブループリントの利点はプログラム知識の浅いアーティストやレベルデザイナーなどの職種も簡単に使えることが挙げられるが、プログラマー以外が書いた場合はバグや高負荷などの問題が生まれやすい。非プログラマーのスタッフが構造を理解せずに書いてしまったコードがなんとなく動いてしまい、実装が進んだ後で問題が発覚することも</div></details>
+<div class="zh"><p>蓝图的优点是编程知识较浅的美术师、关卡设计师等工种也能轻松使用；但若由程序员以外的人编写，就容易产生 bug 和高负载等问题。非程序员员工在不理解结构的情况下写出的代码"不知为何也能跑起来"，等实现推进之后才暴露问题的情况也曾发生</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【对蓝图短板的准确刻画】蓝图的可用性优势（无门槛拖节点）同时也是质量风险：没有类型系统与静态检查的约束，不理解运行结构的编写者也能拼出"能跑"的图——但"能跑"与"正确且便宜"之间隔着隐藏成本：每帧多余的事件调用、错误的节点粒度（Tick 里做查询）、循环引用。更麻烦的是发现时机：实现推进后问题才暴露，返工半径已被放大。</p>
+<p class="ex-sub">【普适性】这不是蓝图的专利，一切"低门槛表达"都伴随同一风险；UE 生态后来的应对（蓝图性能分析器、lint 工具、资产卫生检查）都是在补这块短板。本作的解法不是禁用蓝图（那会丢掉 UE 的迭代优势，见下一段），而是把"谁在什么阶段写"制度化——工具问题流程解。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">一方、プログラマーが管理しすぎる環境になると、アーティストも使いやすいUE4ならではの制作の利点も出ません。そこで、ある程度の段階まではアーティストに自由に制作してもらい、最終的にプログラマーが成果物を引き取って作り直す方式にしたとのことです。</div></details>
+<div class="zh"><p>另一方面，若形成程序员管得过死的环境，"美术师也好用"这一 UE4 独有的制作优势也就无从发挥。于是，据说本作采用了这样的方式：到一定阶段为止让美术师自由制作，最终由程序员接过成果重新制作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【平衡术】这段给出团队的解：分阶段交接——早期让美术师自由用蓝图做内容（保住 UE"非程序员也能做内容"的迭代速度），到一定阶段由程序员接过成果重构为原生实现。这是"原型用蓝图、量产用 C++"的组织化版本，与业界后来的标准实践一致。</p>
+<p class="ex-sub">【成本】交接不是免费的：程序员收尾的吞吐会成为管线瓶颈，因此配套了下一段的"工具化收尾"（编辑器实用程序自动重摆＋属性拷贝）把人的重复劳动压掉。组织设计与工具设计在这里咬合，单看任何一半都不完整。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">具体的なプロセスは、ネイティブ版を作成してもらった後、エディタユーティリティーでツールを作って配置をやり直し、プロパティをコピーすることで完了させるかたちです。プログラマー以外のスタッフにはポリゴン数やテクスチャ解像度のルールを守ってもらう一方で、フラグ設定には触れさせない方針で制作していました。</div></details>
+<div class="zh"><p>具体流程是：请对方先做出原生版本，然后用编辑器实用程序制作工具重新执行配置、复制属性，以此完成。对程序员以外的员工，一方面要求遵守多边形数和贴图分辨率的规则，另一方面采取不让其触碰标志（flag）设置的方针进行制作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【工具化收尾】流程关键在"重摆＋属性拷贝"自动化：美术交出的原生版内容，用 Editor Utility（UE4 的编辑器脚本能力，蓝图/Python 皆可）编写工具重新执行布置，并把原属性值迁移过去。程序员做的是"验证与重构"而非逐个重摆——收尾成本从与内容量成正比降到近似只与工具维护相关。</p>
+<p class="ex-sub">【权限切分的智慧】"多边形数与贴图分辨率守规矩、标志设置不碰"：预算类参数（看得见、可教育的成本）开放给美术；行为类开关（影响运行时特征、出错难定位）收归程序。这是按"出错的可发现性"而不是按"参数的技术含量"划分权限，值得任何团队复用。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">配置物の基底クラスについて例示された「屋台」のアクターは、もともとメッシュやライトが複数配置されているだけのシンプルなクラスでした。この基底クラスを差し替えることで、レベル読み込み時のOverlapEventの抑制や、Tickを動かさないようにしています。</div></details>
+<div class="zh"><p>作为配置物基底类的示例而被介绍的「屋台（摊位）」Actor，原本只是简单放置了多个 mesh 和光源的类。通过替换这个基底类，实现了抑制关卡读取时的 Overlap 事件，以及不让 Tick 运行。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】屋台 Actor 的原形态是"几个网格＋几个光源摆一起"的简单类——正因为它简单且量大（路边摊是街头高频内容），才被选为基底类收益的示范。基底类替换（类继承体系上的差し替え/re-parent）带来的两个运行时修正：</p>
+<ul><li>抑制关卡加载时的 Overlap 事件：流送世界反复加载/卸载关卡，每次加载若触发碰撞体 Overlap 查询与事件广播，就形成周期性 CPU 尖峰。UE4 对此有引擎级开关（加载期间不生成 overlap 事件的选项），本作把正确默认值固化进基底类——靠架构保证"不会忘配"，而不是靠纪律；</li><li>停用 Tick：Tick 的成本不在单个 Actor 而在数量×频率，全城摊位都 Tick 的话调度与蓝图 VM 开销可观。静态装饰类 Actor 的正解是事件驱动（被交互时再激活），基底类直接关掉 Tick 路径。</li></ul>
+<p class="ex-sub">【方法论】"平台化治理"：性能正确性作为类的默认属性下发，而非 code review 时人工把关。对量大面广的重复物，逐个检查必然漏，基类是唯一可规模化的质控点。</p>
+<p class="ex-sub">【与流程的配合】前一段"程序员收尾"正是替换基底类的操作窗口——美术在旧基类上做内容，收尾时换到治理过的基类，属性拷贝保证内容无损迁移。</p>
+<p class="ex-sub">【现代对照】UE5 时代这套仍无官方一键替代：PrimaryActorTick 可默认关闭、tick 注册开销持续优化，业界通行做法依旧是 C++ 基类注入默认值＋profiler 抽查；Fortnite 等大型 UE 项目公开分享过的 Actor 节流/更新频率治理与本段同源。蓝图 VM 性能与调试器在 UE5 有改善，但"配置物基类化"的哲学未变。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">他にも、ライトチャンネルの一括設定や、ボディセットアップが不要な場合には生成しないオプションをアクターに設定できるようにしています（これは本作の開発用に改造したUE4によって実現している機能とのこと）。</div></details>
+<div class="zh"><p>此外，还能对 Actor 批量设置光源通道（Lighting Channel），并在不需要 Body Setup（物理碰撞体设置）时为其设置不生成的选项（据介绍，这是通过为本作开发而改造过的 UE4 实现的功能）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【两项引擎级便利】①光源通道批量设置：UE4 只有 3 条通道，都市夜景里"哪些光源照哪些对象"（如只有妖怪被某类幽光照到）要靠通道过滤，逐 Actor 手配在数千配置物上必然出错，批量设置能力是治理工具。②Body Setup 按需不生成：Static Mesh 默认携带 Body Setup 对象与 cook 数据；对纯装饰、永不参与碰撞/物理查询的 mesh，这些数据白白占用 cook 时间、包体与运行时内存。本作为引擎加了"不需要时不生成"的选项。</p>
+<p class="ex-sub">【作为引擎改造的样本】这个改动是理想样本：改动小（生成路径加条件）、收益乘以全资产数量、不破坏兼容性——与第一节声明的改造原则完全一致。两处改造合看可以提炼本作引擎定制的格调：全部集中在"批量治理与资产卫生"，没有一个改渲染算法的炫技 patch。</p>
+<p class="ex-sub">【对照】UE5 的资产审计与 cook 管理更强，但"装饰物不带碰撞数据"仍主要靠资产规范＋构建脚本保证，思路没有代际差异。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">ビルアクターの事例。あらかじめ用意したパーツマテリアルの組み合わせでプロシージャルにビルの外観を作成可能。同じアクターでも配置場所によって壁や看板などのパーツが変わり、見た目が変化する仕組みとなっている</div></details>
+<div class="zh"><p>大楼 Actor 的事例。用预先准备的部件与材质的组合，可以程序化地创建建筑外观。即使是同一个 Actor，也会因配置地点不同而改变墙体、招牌等部件，从而呈现不同外观，这就是其机制</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】建筑 Actor＝参数化组合系统：预置部件（墙体、窗带、招牌、设备层……）×预置材质，按配置组装出建筑外观；同一 Actor 在不同地点长出不同立面。多样性的来源不是唯一资产，而是组合空间（部件选择×材质随机）——典型的程序化外观思路，只是运行粒度在 Actor 组装层而非离线烘焙层。</p>
+<p class="ex-sub">【为什么这样做】涩谷数千栋建筑，唯一建模在产能与包体上都不可行（后一段两个数字互证：一次性 mesh 很少、包体 20GB 以下）。组合随机化的感知收益也明确：玩家难以在街区之间认出"同一栋楼"，重复感被组合噪声稀释。</p>
+<p class="ex-sub">【取舍】</p>
+<ul><li>外观上限：组合空间再大也是封闭集合，长期游玩会被识别出模式；团队的解法仍是"hero 手工"——地标建筑全手工（前文，全游戏不足 10 个），背景建筑走组合。资源分配逻辑与 LOD 那节同构；</li><li>运行时形态：若每栋楼在运行时保持部件组合（而非烘焙成唯一 mesh），draw call 依赖实例化合并；讲演未说明组合是运行时保持还是构建期烘平，两种做法在流送与内存上各有取舍（推测更可能是运行时组合＋按关卡 HLOD 兜远景）。</li></ul>
+<p class="ex-sub">【现代对照】UE5 PCG 框架把"部件组合生成"标准化（规则图＋点云，城市建筑是官方示例场景之一）；City Sample（The Matrix Awakens）的建筑走 Houdini 离线生成、唯一 mesh 交给 Nanite 渲染——与本作"运行时组合"是同一问题的两种代际解法；《漫威蜘蛛侠》的建筑模块库＋按区换装亦属此谱系。共同点：城市建筑的"量"只能靠组合或程序化解决，唯一资产只留给地标。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">『Ghostwire: Tokyo™』では、先述したランドマーク的な建物以外はほぼこのビルアクターの機能で制作されているため、一点物のメッシュが少ないとのこと。同じメッシュであってもマテリアルがランダムで異なるものになるため、効率良くオリジナルのビルを制作できています。</div></details>
+<div class="zh"><p>在《Ghostwire: Tokyo™》中，除了前述地标性建筑之外，几乎都通过这个大楼 Actor 的功能制作，因此一次性的 mesh 很少。即使是同一 mesh，由于材质会随机变为不同的东西，因此能够高效地制作出各不相同的大楼。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【数字互证】"除地标外几乎全靠建筑 Actor"→"一次性 mesh 很少"：资产清单里没有数千栋唯一建筑，mesh 库是"部件＋材质"的小集合。同 mesh 配随机材质是性价比的关键一步：几何复用（省建模、省包体、利于实例化渲染）而外观不重复（随机材质打破复制粘贴感），两个目标同时达成。</p>
+<p class="ex-sub">【与流送的协同】小而共享的 mesh 库对流送极友好——资产驻留一份、处处引用，流送窗口内的 IO 需求平稳。这与前文 2100 子关卡的细粒度流送是同一套世界观的不同侧面：整个架构都在奖励"共享与复用"、惩罚"唯一性"。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">さらに、ビルアクターの効果は効率化だけではなく、ゲームサイズを押さえることにも繋がりました。結果的に『Ghostwire: Tokyo™』のパッケージサイズは20GB以下と、箱庭で大きな規模を冒険するゲームでありながらコンパクトにまとめることができたそうです。</div></details>
+<div class="zh"><p>而且，大楼 Actor 的效果不仅在于提升效率，还带来了抑制游戏体积的效果。据称，最终《Ghostwire: Tokyo™》的包体控制在 20GB 以下——虽然是一款在箱庭大世界里冒险的游戏，却得以保持紧凑。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【20GB 以下（据讲演）的构成拆解】都市题材包体通常被贴图与唯一几何统治，本作的压缩来自四条已在前文埋好的线：①建筑几乎全为组合生成，唯一 mesh 极少（几何体积小）；②实例关卡让重复内容只 cook/存储一份；③Oodle Texture（第一节中间件，原文笔误 OodieTexture 应为此）对 BCn 贴图做磁盘重打包，贴图这块大头被显著压低；④远景是 ProxyMesh 而非高模 LOD 链，远景资产体积可控。四条线的共同点是"消灭唯一性"——包体是这套复用哲学的自然积分结果，而不是单独优化的目标。</p>
+<p class="ex-sub">【量级参照】2022 年前后 3A 普遍数十到上百 GB 的背景下，同体量都市题材不到 20GB 相当克制（据讲演；横向对比值此处不展开）；对数字下载转化、首日补丁尺寸、硬盘占用都是实打实的用户侧收益。</p>
+<p class="ex-sub">【代价与边界】小包体的对面是程序化外观的美术上限（前段已析）：一旦项目要求"每栋楼都可辨认"的写实街区复刻（涩谷本地玩家的挑剔），组合式外观不够用，唯一资产比例上升，包体优势随之消退——这是本作（怪异涩谷、氛围优先）恰好能吃到、而写实复刻向项目吃不到的红利。</p>
+<p class="ex-sub">【现代对照】UE5 默认 Oodle Texture、IoStore 让包体治理工具更强，但《使命召唤》系列等"包体失控"案例说明工具从来不是决定因素——决定包体的仍是"唯一资产比例"这一内容架构决策，本作是正面教材；City Sample 的全唯一建筑路线在 Nanite 时代可行，代价则是数十 GB 级项目体量。</p></div>
+</article>
+<div class="sec-h"><h3>用于检查广大都市中可移动范围的导航网格功能</h3><span class="sec-h-en">広大な都市を移動する範囲をチェックするナビゲーションメッシュ機能</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>收官小节转向 AI 移动性：Nav Mesh 在箱庭都市下膨胀成巨量数据，运行时重建（Dynamic）与关卡流送正面冲突，团队在早期就把方案钉死为 Static，再以"TileSizeUU 取最大值"压内存、以每晚 Jenkins 全量重建保新鲜。本节展示开放世界工程里常被忽视的一环——寻路数据的生产管线与流送世界的一致性治理，与前文 ProxyMesh 段互为镜像。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">続いてナビゲーションメッシュ（以下、ナビメッシュ）について解説。ナビメッシュとはUE4で構築したレベルで、敵キャラなどを現すAIエージェントが移動可能な空間を表す機能です。</div></details>
+<div class="zh"><p>接下来对导航网格（以下称 Nav Mesh）进行解说。所谓 Nav Mesh，是在 UE4 中构建的关卡里，表示敌人角色等 AI Agent 可移动空间的功能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【科普定位】Nav Mesh＝Recast/Detour 生成的可行走多边形集合，AI 依赖它寻路。UE4 的生成有三种运行模式（Static／Dynamic／DynamicModifiersOnly，见下一段的实战取舍），世界被划成 tile，按 agent 参数（半径、高度、坡度、步高）体素化后简化为多边形。本作因为"整张涩谷皆可走"＋敌人遍布全城，Nav Mesh 规模与关卡数据同量级膨胀——它本身也是一种必须被"流送/构建管理"的资产。本节的视角正在于此：把寻路数据当作内容管线问题而非运行时功能问题来治理，这一认知在大世界项目里比任何参数调优都值钱。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作は箱庭型で渋谷の街を探索する形式のため、ナビメッシュの規模も非常に巨大になっていました。ナビメッシュは当初Dynamicを利用していましたが、都市型のレベルストリーミングには耐えられず、DynamicModifiersOnlyを利用しても実現が難しい状況だったといいます。このため、早い段階でレベル制作チームとバトル制作チームが相談し、できることとできないことを天秤にかけた結果、Staticを使うことが決定したと言います。</div></details>
+<div class="zh"><p>由于本作是箱庭式探索涩谷街区的形式，Nav Mesh 的规模也变得非常巨大。据称，Nav Mesh 最初使用的是 Dynamic，但无法承受都市型的关卡流送；即便改用 DynamicModifiersOnly 也处于难以实现的状况。因此，据说在早期阶段关卡制作团队与战斗制作团队进行了商谈，把能与不能放上秤权衡之后，决定使用 Static。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【三种模式的工程含义】Static：构建期生成、运行时只读；Dynamic：几何一变就异步重建受影响 tile；DynamicModifiersOnly：静态基础＋运行时仅叠加动态修改。都市流送下 Dynamic 的死穴：每次子关卡加载/卸载都触发 tile 重建，2100 个关卡的流送频率×每次重建的 CPU/内存抖动＝持续尖峰，敌人寻路还会在重建空窗期失效。DynamicModifiersOnly 看似折中，但流送关卡本来就不在静态基础集里，未加载区域无网格可言，跨关卡追击照样断——两条路都走不通，只剩 Static。</p>
+<p class="ex-sub">【决策流程的启示】"关卡团队与战斗团队早期协商、把能与不能放上秤"值得单独立碑：寻路能力是跨部门契约（LD 摆的东西决定 AI 能不能走），拖到后期才发现 Dynamic 不行，返工的是全部关卡。早期钉死 Static＝同时钉死"运行时场景几何不可变"这条世界规则，后续所有动态内容（可破坏、可搬运）都只能在此约束内设计或用 modifier 局部突破。</p>
+<p class="ex-sub">【代价】Static 意味着构建期固定：世界改动后 Nav Mesh 必须重新生成（引出下一段每晚 Jenkins 全量重建）；运行时不可变也限制了玩法形态——这是用确定性换性能的典型交易。</p>
+<p class="ex-sub">【现代对照】UE5 的 Nav Mesh 仍基于 Recast（Static/Dynamic 语义未变），大世界通行做法依旧是"分块静态烘焙＋按需加载＋运行时动态避障（RVO/动态 modifier）"，本节结论在 UE5 依然成立；City Sample 等城市项目对 AI 寻路的分块治理同源。真正的变化在协作层：WP＋CI 让"每晚重建"这类管线更易搭建，哲学未变。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">エージェントは通常と大型のキャラクター2種類を用意。TileSizeUUはメモリの消費を最小限に押さえるために最大値に設定した。当初はさらに大きな値を予定していたが、ソースコード上にクラッシュするという記述があり、実際にクラッシュしてしまったこともあって、最大値を守って運用したとのこと</div></details>
+<div class="zh"><p>Agent 准备了普通与大型共两种角色。TileSizeUU 为了把内存消耗压到最低而设置为最大值。当初曾预定使用更大的值，但由于源代码上写有会崩溃的记述，实际也崩溃过，因此据称遵守最大值进行了运用</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【TileSizeUU 的机制】Detour 以 tile 为 Nav Mesh 的构建/存储/重建单元，TileSizeUU 即单 tile 的世界边长。关键权衡：tile 大→同样面积的 tile 数量按平方反比减少（面积/边长²），每 tile 的元数据、空隙与重建队列开销随之骤降，内存最省（这正是原文"为压内存取最大值"的原理）；tile 小→重建粒度细但元数据开销平方级增长。涩谷面积固定，把尺寸推到上限，是把"每 tile 固定开销×数量"的总账压到最小的直接手段。</p>
+<p class="ex-sub">【崩溃警报的工程文化价值】原文透露：原想用更大值，但引擎源码里就写着会崩溃的注释，实际也崩过，于是退回上限——说明团队真的读了源码并验证过边界（Detour 系 tile 内多边形/顶点计数等固定宽度数据结构对过大 tile 有上限，具体溢出点讲演未展开，据讲演）。"以引擎上限为准、不越界"是稳健的运维纪律，也再次呼应第一节"不做破坏兼容性改造"的克制风格。</p>
+<p class="ex-sub">【双 Agent 的内存乘数】普通＋大型两种 Agent（不同半径/高度）意味着两套 Nav Mesh 配置并存，内存直接翻倍——这进一步解释了为何在 tile 尺寸上抠内存：单项的节省都会被 Agent 套数放大，反之亦然。</p>
+<p class="ex-sub">【未展开处】两种 Agent 是否共享 tile 结构、大型敌人的可走区域如何限制（分层/标记），讲演未提。</p>
+<p class="ex-sub">【现代对照】UE5 的 Nav Mesh 参数体系（含 tile size）原样保留，大世界实践同样是"大 tile＋静态＋按需加载"；本段是把 Detour 底层参数当内存工具用的清晰示范，在任何 Recast 系寻路引擎（含自研）里都成立。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">都市の地下にはダンジョンのインスタンス用ナビメッシュを構築。ナビメッシュ構築の時だけ該当するインスタンスをロードするようにしており、毎晩Jenkinsで必要なものをすべてロードして自動更新していきました。開発中、レベルデザイナーは自分が担当するパートを部分的に読み込み、ローカル環境で作業することが多かったそうです。</div></details>
+<div class="zh"><p>在都市地下构建了副本用的实例 Nav Mesh。做法是只在构建 Nav Mesh 时读取对应实例，并每天晚上用 Jenkins 读取所需的全部内容进行自动更新。据说开发中，关卡设计师大多只部分读取自己负责的部分，在本地环境下作业。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【管线收尾三件套】①地下副本的 Nav Mesh 按实例分别构建——副本内容平时不加载，构建期才把对应实例拉进来生成，避免常态构建压力；②每晚 Jenkins 把所有需要的实例加载一遍、自动重建受影响的 Nav Mesh——与前文 ProxyMesh 的夜间全量重建是同一套 CI 哲学：白天改世界、夜里机器收割一致性；③关卡设计师本地只加载自己负责的部分作业——这是 2100 子关卡规模下必然的协作形态（无人能全量加载），再次印证第一节"世界被切碎"的代价与配套。</p>
+<p class="ex-sub">【一致性视角】Nav Mesh 是"从世界几何派生的数据"，派生数据的新鲜度必须由管线保证而非人的自觉。本段与 ProxyMesh 段合看，本作真正的核心工程能力是：所有派生资产（代理网格、Nav Mesh）都有自动化再生通道，世界因此可以持续改动而不腐烂。这是开放世界项目长期健康度的关键指标，比任何单点技术更值得借鉴。</p>
+<ul><li>以上即讲演前半（城市构建侧）的收官，后半自"表现怪异的 VFX 制作"起转入内容制作话题。</li></ul></div>
+</article>
+</section>
+<section class="chapter" id="vfx">
+<header class="ch-head"><span class="ch-en">VFX for the Yokai</span><h2>表现怪异的 VFX 制作</h2></header>
+<div class="sec-h"><h3>表现怪异的 VFX 制作</h3><span class="sec-h-en">怪異を表現するVFXの制作</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>讲演后半由此进入制作话题。本节是全文信息密度最高的一节：先给出 FxObject（FO）这一自研特效接口的架构动机与美术/程序员分工，再以白无垢、秽树、御札、雨童等"一件一品"级案例逐个展开材质扩展参数的玩法，随后谈到外部 Actor 联动与 300–400 个并发 FO 的调试工具，最后以自动配置的环境 VFX 小节收尾。理解 FO 的接口设计是读懂本节全部案例的前提。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">怪異を表現するエフェクトなど、VFXは一点物のユニークな表現が多いのも本作の特徴。なるべくプログラマーの手を介さずにアーティストが独立して実装することを目的として、エフェクトのインターフェースとなるアクター FxObject（以下、FO）が用意されています。プログラマーやレベルデザイナーはNiagaraなどを一切触らずに、FOを通じてアニメーションを呼び出すことができます。</div></details>
+<div class="zh"><p>表现怪异的特效等，本作的 VFX 中有许多"一件一品"式的独特表现，这也是本作的特征之一。为了让美术师尽量不经程序员之手就能独立实现，本作准备了充当特效接口的 Actor——FxObject（以下称 FO）。程序员和关卡设计师完全不必触碰 Niagara 等内容，只需通过 FO 调用动画即可。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】FO 的本质是一个外观（facade）Actor：把 Niagara/Cascade 系统、材质参数动画与音频打包进同一容器，对外只暴露"按名字调用动画"的窄接口。调用方（应用程序程序员、关卡设计师）仅依赖接口契约，对内部实现零依赖——教科书式的依赖倒置，用引擎 Actor 系统实现了"特效即服务"。</p>
+<p class="ex-sub">【设计动机】本作 VFX 的特点是"一点物（one-off）"极多：每个怪异的招牌演出都独一无二，若每次都要程序员接线，VFX 美术的产出会卡死在工程管线上。FO 把"表现自由"整体下放给美术，程序员只维护游戏侧状态机。</p>
+<p class="ex-sub">【取舍】UE4 原生最接近的机制是 Gameplay Cue（同样把游戏事件与 VFX/音频解耦）和 Level Sequence（数据化时间轴），但前者绑定 GameplayAbility 体系、后者偏过场而非游戏态联动，都不适合"运行时按事件调用、又能被游戏状态反向调制"的场景，于是自研。代价是：FO 这层抽象与引擎版本强耦合——Niagara 在 4.2x 每个版本都在变资产格式与 API，封装层必须持续跟进；序列化、热重载、多人协作合并都要自己兜底；FO 还容易膨胀成"上帝对象"（后文显示它同时管轨道、区间循环、材质扩展参数、外部 Actor 操作）。</p>
+<p class="ex-sub">【局限】讲演未给出 FO 的开销数据，只提到同时 300–400 个 FO 在跑（见后文调试段），可推知每个 FO 的 tick 与参数写入必须极轻，否则先爆的是游戏线程。</p>
+<p class="ex-sub">【现代对照】UE5 中这一层的官方答案在逐渐成型：Niagara Messenger、Niagara Data Channels（粒子与材质双向通信）、GameFeatures 插件化解耦；但"美术完全自治"的完整封装，各厂至今仍多为自研。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">FOではNiagaraやマテリアルアニメーション、音を統合して使うことができるため、先述したようにアプリプログラマやレベルデザイナーはこの機能が何を制御しているかについて知らなくとも使うことができる</div></details>
+<div class="zh"><p>FO 可以把 Niagara、材质动画与音频整合起来使用，因此如前所述，应用程序程序员和关卡设计师即使不知道这个功能在控制什么，也能够使用它。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"整合"意味着 FO 是复合资源的容器：Niagara 组件、音频（本作走 Wwise）、材质动画统一由 FO 的生命周期管理（生成、触发、停止、销毁）。调用方"不知道在控制什么仍能用"，正是接口契约的价值所在：耦合面从"实现细节"收窄到"动画名"。</p>
+<p class="ex-sub">【取舍】解耦的代价是可观测性：出问题时调用方无法自查，只能依赖 FO 侧的调试工具——后文的 widget 状态显示与运行时播放/停止工具正是为补这个洞而存在的。这与微服务"边界清晰但排障靠集中式 tracing"是同构问题：没有配套调试设施的抽象层，会把成本转嫁给 QA 阶段。</p>
+<p class="ex-sub">【现代对照】UE5 里 Niagara 的系统事件、Gameplay Cue 的 OnActive/OnRemove 回调都在官方层面向同一方向演进。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">FO内にあるアニメーションを呼ぶだけでシンプルに使用可能。例えば、いずれもNiagaraやサウンド再生などを内包するStartEffect、ChangeColor、StopEffectという3つのアニメーションFOがあった場合も、必要なアニメーションを呼び出すだけで内部的な理解がなくても使用することができる</div></details>
+<div class="zh"><p>只需调用 FO 内的动画即可简单地使用。例如，假设有 StartEffect、ChangeColor、StopEffect 三个动画，它们各自内含 Niagara 与声音播放等内容，此时也只需调用所需的动画，即便没有内部理解也能使用。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】示例刻意选了三个动词式动画名，说明接口被最小化为"调用动画"这一个动作，无需传参、无需了解内部状态机。StartEffect/ChangeColor/StopEffect 的命名把 FO 当作"带状态的黑盒播放器"：开始、变颜、停止，语义上是命令模式（Command Pattern），每次调用即一条命令。</p>
+<p class="ex-sub">【设计动机】"命名契约先行"直接支撑了后文"先备空动画、并行开发"的流程：名字即接口，接口先冻结，实现后填充——典型的契约先行（contract-first）协作，与软件工程里先定 API 再分头实现的 mock/stub 思路完全一致。</p>
+<p class="ex-sub">【局限】依赖命名的契约没有静态检查：改名即静默断裂，只能靠规范、代码评审或资产校验兜底；讲演未提及是否有命名校验工具，这是此类资产接口的普遍软肋。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">Niagaraやサウンドなどの実装はVFXアーティストやサウンドアーティストの役割。アニメーションの種類と名前だけを先に決めておき、空の状態のアニメーションを先に用意しておくことで、プログラマーは実装、アーティストはエフェクト作成と並行して作業ができていました。</div></details>
+<div class="zh"><p>Niagara 与声音等的实现是 VFX 美术师和音频美术师的职责。只需事先定好动画的种类与名称、预先准备好空状态的动画，程序员做实现、美术师做特效制作，双方就能并行作业。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"先定动画种类与名、先放空动画"即依赖冻结：程序员对着空壳接游戏逻辑，美术稍后填充内容，两者在时间轴上并行。这等价于编程中的接口桩（stub）实现，只不过这里的"接口"是资产命名空间。</p>
+<p class="ex-sub">【取舍】该流程成立的前提是接口粒度足够粗（按动画整块调用）；一旦需要细粒度参数（具体颜色值、强度曲线），就会出现"美术想加参数→程序员改接口"的回环。讲演对此未展开，推测靠 FO 轨道与用户参数吸收了部分这类需求。</p>
+<p class="ex-sub">【现代对照】UE5 的 Data Asset 与 Gameplay Cue 的参数化（Cue Parameters）正是把"内容侧想调的参数"标准化进接口的努力；音频侧 Wwise 的 Game Parameter/RTPC 也让声音参数解耦于代码，与本作"各专业自治"的思路同型。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">FOで作れるトラックには多くの種類がある。NiagaraやCascadeに関しては直接使用するのとほぼ同じ操作が可能で、ユーザーパラメーターにアニメーションを流すこともできるとのこと。他のコンポーネントと連動したアニメーションを流したい時や、ゲームの進行によってインタラクティブにアニメーションを変化させたい場合に活用されている</div></details>
+<div class="zh"><p>FO 可创建的轨道（track）有很多种类。Niagara 和 Cascade 基本可以像直接使用时一样操作，据说还能把动画流向用户参数。在想让动画与其他组件联动、或想随游戏进度交互式地改变动画时，就会用到它。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"轨道"表明 FO 内部是一个 Sequencer/Matinee 式的时间轴求值器：每 tick 对轨道采样，把值写入 Niagara/Cascade 的用户参数（User Parameter）或材质参数。对 Niagara/Cascade"几乎等同直接操作"，意味着 FO 轨道覆盖了发射器参数的动态化，比 Level Sequence 的属性轨道更贴近粒子工作流。</p>
+<p class="ex-sub">【设计动机】把"随时间变化的参数"从代码搬进数据，美术才能独立完成交互式演出：与其他组件联动（如与角色动画同步）、随游戏进度改变动画，本质都是"外部状态→时间轴参数"的映射；做成轨道后由美术连线，而非程序员写逻辑。</p>
+<p class="ex-sub">【取舍】每 tick 由游戏线程写 Niagara 用户参数是有代价的：User Parameter 更新走 CPU 侧，大批 FO 同时驱动时是可预期的游戏线程负载。300–400 个 FO 若各自带多条轨道，求值成本必须摊平（讲演未给数据，推测轨道为惰性求值或按需激活）。另外轨道数据是资产，迭代在编辑器内完成、与运行时性能隔离——这是把表现逻辑从代码移到数据侧的普遍收益。</p>
+<p class="ex-sub">【局限】时间轴模型对"事件驱动、无固定时长"的演出不友好，需要后文区间循环这类扩展来补。</p>
+<p class="ex-sub">【现代对照】UE5 的 Sequencer 控制绑定 + Niagara 参数动画化已更成熟，Niagara Data Channels 则补上了"外部系统写参数"的缺口。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">FOの特徴はNiagaraやCascade、NPCマテリアルに対して設定できるアニメーションの機能を持つこと。区間ループ再生を持ち、再生開始から指定した区間のアニメをループさせることが可能で、停止の命令が入ることでループを抜けて最後のアニメーションを再生する</div></details>
+<div class="zh"><p>FO 的特征在于拥有可对 Niagara、Cascade 以及 NPC 材质设置动画的功能。它支持区间循环播放：可以从播放开始起让指定区间的动画循环，当收到停止指令后跳出循环、播放最后的动画。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】区间循环即时间轴上的 intro–loop–outro 三段结构：播放进入指定区间后循环，收到停止命令跳出循环、播到尾部。等价于音频界的 one-shot with sustain loop（枪声尾部循环那类做法），或 AnimSequence 的 section/composite 循环语义，只是作用域被推广到 Niagara/Cascade/NPC 材质三类目标。</p>
+<p class="ex-sub">【设计动机】大量怪异演出的形态是"待机态持续存在、直到游戏事件结束"（持续冒烟、持续发光、被发现的警戒态）。没有区间循环，美术就得自己拆成"循环段+结束段"两个动画并管理切换——这个状态机必然落回程序员手里；有了它，"何时结束"成为调用方唯一的输入（StopEffect），其余全在美术侧。</p>
+<p class="ex-sub">【取舍】跳出循环要求动画能从任意循环帧过渡到 outro：要么循环/结束段在制作上可硬切（VFX 常见，粒子天然容忍），要么引擎支持交叉淡出——讲演未提实现，推测是硬切加美术侧设计兜底。对 NPC 材质的区间循环则更敏感：材质参数跳变肉眼可见，outro 必须设计成参数收敛（如自发光归零）而非突变。</p>
+<p class="ex-sub">【现代对照】UE5 Sequencer 的 section 循环、Niagara 的 Loop Behavior 与发射器完成态（Complete/Infinite）覆盖同类需求；UE5.5 的 Niagara Sims 更让美术能自绘这种状态逻辑。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">続いて、マテリアルに関する機能も解説。FOを介して操作されるマテリアルは拡張された特殊なパラメーターを受け取ることが可能で、ポストエフェクトではFOの位置と2Dの位置を取得でき、デカールではバウンディング情報を取得可能です。</div></details>
+<div class="zh"><p>接着还讲解了与材质相关的功能。通过 FO 操作的材质可以接收经过扩展的特殊参数：后处理中可获取 FO 的位置与 2D 位置，贴花（Decal）中则可获取包围盒信息。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这是 FO 对材质的参数注入通道：对后处理材质写入 FO 的世界位置与投影后的屏幕 2D 位置，对贴花材质写入包围盒信息。传递路径大概率是 MPC 或材质参数——CPU 每帧算好投影，像素着色器里即可做"到 FO 屏幕位置的距离场"。</p>
+<p class="ex-sub">【设计动机】后处理与贴花这类全屏/贴面材质天生"不知道效果中心在哪"；把 FO 位置作为参数喂进去，才能把全局效果约束到局部范围。这是后文白无垢冰结、御札范围、雨童模糊三个案例的共同基座。</p>
+<p class="ex-sub">【取舍】屏幕空间传递要处理 FO 出画、近裁剪、多实例叠写（多个 FO 写同一参数会互相覆盖）——推测采用"最近或最显著者胜"的单活动实例策略，这也解释了这些演出为何都是单体强演出而非同屏多份。</p>
+<p class="ex-sub">【现代对照】UE5.3+ 的 Niagara Data Channel（渲染纹理通道）允许粒子把位置/属性直接写进材质可采样的纹理，多实例冲突由纹理合成天然解决，是这一手工机制的官方化版本。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">使用例として、敵の1人である「白無垢」の動画を公開。地面を凍らせるような攻撃の際、Gバッファを見ながら指定された範囲に氷結のエフェクトを描いています（地面に刺さっているつららの表現はCascade）。</div></details>
+<div class="zh"><p>作为使用例，公开了敌人之一"白无垢"（白無垢，日式纯白礼服造型）的视频。在进行冻结地面般的攻击时，特效一边查看 G-Buffer，一边在指定范围内绘制冰结效果（插在地面上的冰锥表现使用 Cascade）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】冰结范围的约束靠"看 G-Buffer"：后处理 pass 采样 G-Buffer 的世界法线与深度，重建世界坐标后按"到 FO 位置的距离 + 表面朝向（是否地面）"做遮罩，只在指定半径内的地面类表面绘制冰纹。地面冰锥则是 Cascade 粒子生成的几何级表现，与屏幕空间冰纹分层合成。</p>
+<p class="ex-sub">【设计动机】延迟管线下，对"场景已渲染表面"做范围化着色，读 G-Buffer 是信息最全的方案：法线可区分地面/墙面，深度可取世界位置，粗糙度/金属度可让冰面正确继承底材高光——这是贴花投影（Deferred Decal）难以全部做到的语义级遮罩。</p>
+<p class="ex-sub">【取舍】代价是全屏 pass 的屏幕成本与"一效果一 pass"的扩展性；用 FO 的 2D 位置可在着色器里对屏幕外/远距像素早退（early-out），讲演未细说，但这是该设计的常规实现。另一处取舍：G-Buffer 读取的时机耦合延迟管线细节（须在与半透明合成前完成），自研深度不低。</p>
+<p class="ex-sub">【局限】依赖具体 G-Buffer 布局（UE4 的 GBuffer A/B/C 通道分配），引擎版本一变即碎——自研特效层的典型隐性维护点。</p>
+<p class="ex-sub">【现代对照】UE4.22+ 的运行时虚拟纹理（RVT）提供了"往世界表面程序化绘制并持久化"的原生方案；UE5 的 Mesh Decal 与水系统是其后续；Insomniac《漫威蜘蛛侠》系列的战斗破坏等表面效果亦走"游戏数据遮罩的全屏/表面效果"路线。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本来プログラマーが関わらないと実現できないようなシチュエーションでも、アーティストだけでエフェクト制作が完結しています。</div></details>
+<div class="zh"><p>即便是本来必须程序员参与才能实现的情境，如今仅靠美术师就能完成特效制作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这句是对前面所有案例的收束：G-Buffer 读取、后处理范围化、贴花包围盒驱动——这些在 UE4 里传统上都要程序员碰 C++（自定义着色器、pass 插入、参数桥接），而 FO 把它们全部封装成了美术可用的原语。</p>
+<p class="ex-sub">【取舍】"美术自治"的实质是把图形工程师的隐性知识固化进工具：每固化一层，美术产能升一级，但工具组的技术债也涨一级。讲演对 FO 自身的开发与维护成本只字未提——这类自研中间件的供养人力，在讲演类材料里往往被系统性低估。</p>
+<p class="ex-sub">【现代对照】这正是引擎功能逐步"吞掉"自研层的历史规律：UE5 的 Niagara Data Channel、RVT、Mesh Decal 正把这类需求原生化；反面注脚是 Tango 下一部《Hi-Fi RUSH》仍基于 UE4.27，FO 这套封装还得继续养。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">禍々しい見た目の「穢れ樹木」は、デカールとメッシュのマテリアルアニメーション、Niagaraの組み合わせで作られている。穢れ樹木は汎用的に使われるものであり、設置する場所によってサイズを変更する必要がある。デカールのバウンディング情報を取得し、模様のリピート率などを決めて表現している</div></details>
+<div class="zh"><p>外观凶秽的"秽树"（穢れ樹木，被污秽侵蚀的树木）由贴花（Decal）与 mesh 的材质动画、Niagara 组合而成。秽树是被通用使用的素材，会随设置场所不同而需要改变尺寸。通过获取贴花的包围盒信息来决定纹样的重复率等进行表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】秽树是三层合成：贴花承担表面纹样、mesh 材质动画承担本体生长/脉动、Niagara 承担氛围粒子。关键在自适应尺寸：读取贴花的包围盒信息，在材质里按包围盒归一化 UV、据此计算纹样重复率——同一资产放到任意大小的位置，纹样密度自动一致，不必为每种尺寸出贴图变体。</p>
+<p class="ex-sub">【设计动机】通用资产在开放世界要复用到几十上百处，靠"美术手调每处平铺率"不可扩展；把平铺率推导为包围盒的函数，等于把资产适配问题降维成自动约束。</p>
+<p class="ex-sub">【取舍】重复率由包围盒驱动意味着纹样是均匀平铺，无法做"边缘加密、中心稀疏"之类构图性变化——用表现力换自动化。</p>
+<p class="ex-sub">【现代对照】UE5 PCG 框架"按上下文变换实例属性"、材质里的世界对齐/按对象缩放采样是官方同型方案；RVT 则从根上绕开平铺问题（纹样写进虚拟纹理，没有重复感）。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">お札の効果範囲を表現するために、ポストエフェクトでマーブル模様を描いている。FOから中心値を取って範囲を決定。デカールではなくポストエフェクトで行っているのは、範囲の制約がないのと、シェーダーで得られる情報が多いからとのこと</div></details>
+<div class="zh"><p>为了表现"御札"（お札，护身符）的效果范围，在后处理中绘制大理石纹样。从 FO 取中心值来决定范围。之所以不用贴花而用后处理，据称是因为后处理没有范围约束、且着色器能获得的信息更多。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】御札范围 = 后处理绘制大理石纹：FO 提供中心值，着色器按到中心的距离场混合噪声纹理成纹样。选后处理而非贴花的两条理由都很硬：（1）贴花受作用面/投影范围约束——半径一大就会被表面起伏与法线破坏，而后处理在屏幕空间直接以距离场定义范围，任意大且无视几何；（2）后处理着色器可见的信息（深度、法线、屏幕 UV、噪声、FO 位置）远多于贴花材质。</p>
+<p class="ex-sub">【取舍】与前述 FO 后处理案例同样的通病：全屏成本、单实例假设、与半透明/雾的合成时序要处理。不过"范围可视化"是玩家要读取的 gameplay 信息，属于 UI 式效果，确实最适合屏幕空间。</p>
+<p class="ex-sub">【现代对照】现代做法或继续用后处理材质 + SvPosition 同思路，或干脆进 UI 层画半径环（不少游戏如此）——更便宜，但少了与场景光影的融合感。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">「雨童（あめわらし）」に発見されたときの演出では、放射状のブラーとパーティクルの表現が使われている。これもFOの2D値を渡す機能によってブラーの中心値を求めることで、プログラマーの手を借りずに実装できている。ポイントとして、雨童の担当プログラマーは「FOの発見時のアニメーションを再生しているだけで、FO内部のポストエフェクトが動いているかは感知していない」とのこと。FOを実装するプログラマーの作業と、FOの中身を作るアーティストの作業が分担されることで、効率良く開発が進められた事例となる</div></details>
+<div class="zh"><p>被敌人"雨童"（あめわらし，雨童子）发现时的演出中，使用了放射状模糊与粒子的表现。这同样是借助 FO 传递 2D 值的功能求出模糊中心值，从而在不借程序员之力的情况下实现的。要点在于，雨童的负责程序员表示"自己只是在播放 FO 的发现时动画，FO 内部的后处理有没有在动完全感知不到"。通过把实现 FO 的程序员的工作与制作 FO 内容的美术师的工作分工，这是高效推进开发的典型案例。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】放射状模糊（radial blur）需要模糊中心点：FO 把自己的投影 2D 位置传给后处理材质，着色器以该点为中心、沿"像素→中心"方向多 tap 采样合成放射模糊，再叠加粒子。引语是本节架构论点的最强实证——接口隔离做到了调用方连"效果类型"都不知道。</p>
+<p class="ex-sub">【取舍】放射模糊是全屏多 tap 采样，单次成本不低；受"FO 传单一 2D 值"的通道设计所限，多个雨童同屏时中心值如何取舍是潜在缺陷（推测只保留一个活动实例；发现演出本身低频，可接受）。屏幕空间中心的另一问题是 FO 出画时模糊失锚，需要美术在设计上保证演出期间目标在画内。</p>
+<p class="ex-sub">【局限】把范围化效果全走后处理，意味着往 UE4 半透明合成顺序里插 pass 的时序细节被 FO 吞掉——美术无感，但引擎升级时这类"看不见的耦合"最先碎，与 FO 自研抽象层的维护成本是同一笔账。</p>
+<p class="ex-sub">【现代对照】时序渲染时代，全屏多 tap 后处理会与 TSR 的历史缓冲互相干扰（模糊拖影被误当运动补偿），UE5 里这类效果更倾向在 Niagara 内完成（速度拉伸/拖尾）或用 Data Channel 驱动；Niagara Sims 进一步允许美术自绘此类屏幕效果逻辑。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">FOのもうひとつの特徴として、外部アクターとの連携があります。FO自身もStatic Meshを持つことはできますが、外部アクター（キャラクターなど）が持っている対象に対して操作を行うことも可能です。</div></details>
+<div class="zh"><p>FO 的另一个特征是与外部 Actor 的联动。FO 自身虽然也可以持有 Static Mesh，但也能对外部 Actor（角色等）所持有的对象进行操作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这是 FO 从"自包含效果容器"升级为"跨对象操纵器"的一步：FO 不只驱动自己的组件，还能把动画/材质参数作用到外部 Actor 持有的 mesh 上。实现上即 FO 持有对外部组件的弱引用，轨道求值结果写入对方材质参数——接口仍是"播放动画"，作用域却越过了自身边界。</p>
+<p class="ex-sub">【设计动机】角色类演出的资源所有权在角色（敌人类）手里，效果却属于 VFX 组：若无外部联动，要么角色类交出 mesh 控制权（破坏封装），要么效果资产挂在角色身上（美术跨系统改资产）。FO 跨界操作让所有权与表现权各归其主。</p>
+<p class="ex-sub">【取舍】外部引用引入生命周期问题：目标 Actor 先死、FO 后死时的空引用处理；以及职责边界——改的是"敌人的 mesh 材质"，出错时排障横跨两组。讲演未提一致性保障，推测靠约定（死亡演出期间角色存活）兜底。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">外部アクター連携事例。敵の死亡演出では、メッシュ自体は敵のクラスが持っているが、FOと連携することで敵のメッシュが消えていくアニメーションを再生している</div></details>
+<div class="zh"><p>外部 Actor 联动案例。敌人的死亡演出中，mesh 本身由敌人的类持有，但通过与 FO 联动，播放敌人 mesh 逐渐消失的动画。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】死亡消散是外部联动的标准用例：FO 驱动敌人 mesh 的材质参数（消散遮罩推进、自发光衰减、溶解阈值），mesh 资源仍归属敌方类。消散动画的时机由死亡逻辑触发 FO，内容（怎样消散）完全由 VFX 美术在 FO 内打磨。</p>
+<p class="ex-sub">【设计动机】怪异敌人死亡时"化为尘埃/灵体散去"是本作的核心演出（后文 Niagara 网格体采样模块亦服务于此），全 enemy 共用机制、逐敌人定制内容，正是"一处架构、N 处内容"的杠杆点。</p>
+<p class="ex-sub">【取舍】材质侧消散要求敌人材质预留消散参数通道（每敌人材质都要接同一个约定），这与 MPC 治理段呼应——全团队共享的材质约定即是接口，漏接就演不出。</p>
+<p class="ex-sub">【现代对照】UE5 中这类"死亡消散"已模块化（材质函数+Niagara 粒子承接），ML Deformer/网格体采样进一步把"从表面散开"做细。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、FOのデバッグ機能についても語られました。本作では300～400のFOが同時に動いているため、デバッグのツールが用意されています。ウィジェットでは各FOのステータスが確認できるだけでなく、ゲーム実行中に指定したFOのアニメーションを再生・停止する機能も実装。開発の途中でアニメーションが増えた場合、アーティストがテストでアニメーションを再生し、確認することが可能になっています。</div></details>
+<div class="zh"><p>此外还谈到了 FO 的调试功能。本作中同时有 300～400 个 FO 在运行，因此准备了调试工具。部件（widget）中不仅能确认各 FO 的状态，还实现了在游戏运行中播放/停止指定 FO 动画的功能。开发途中动画增多时，美术师可以播放动画进行测试确认。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】300–400 个并发 FO（据讲演）意味着 FO 已是城市级规模的运行时系统，必须有集中可观测性：widget 展示各 FO 状态（播放中/循环中/停止、当前动画），加运行时播放/停止任意 FO 的遥控能力——相当于给特效系统配了"进程管理器"。</p>
+<p class="ex-sub">【设计动机】前文架构把内部细节对调用方藏起来，调试就必须由 FO 侧集中补偿，否则故障定位要横跨两组人；运行时遥控播放则让美术不必复现游戏条件即可验证新动画——对"动画后期越加越多"的项目，这是迭代速度的直接保证。</p>
+<p class="ex-sub">【取舍】规模数字也反推了实现约束：300–400 个 Actor 的 tick、轨道求值、参数写入都要按毫秒级预算摊薄，任何每帧 O(FO 数×轨道数) 的昂贵操作都不可行——讲演没给性能数字，这个量级本身就是设计边界。</p>
+<p class="ex-sub">【现代对照】UE5 的 Niagara Debugger/系统概览面板、以及 Gauntlet/自动化截图测试是官方化同类工具；自研系统的可观测性投入普遍被低估，本节把它单列一段值得肯定。</p></div>
+</article>
+<div class="sec-h"><h3>自动配置排风管烟雾等的环境 VFX</h3><span class="sec-h-en">ダクトからの煙などを自動配置する環境VFX</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>前半的 FO 面向"一件一品"的战斗与怪异演出，本小节转向数量问题的另一端：街区里无限重复的环境特效（排风管蒸汽等）。讲演给出一条规则驱动的自动配置管线——扫描 World Composition、按表生成关卡——把环境 VFX 从手工摆放中解放出来。它回答了开放世界 VFX 的经济学：FO 解决"单件复杂度"，本节解决"件数规模"。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作は広大なフィールドを有するため、ダクトから出る煙のような汎用的な演出はシステム的に自動配置されるようになっています。ワールドコンポジション内をトラバースしてテーブルで指定したメッシュコンポーネントを検索し、該当する場所に自動でレベルを作成、あらかじめ設定されたサウンドやパーティクルを配置しています。</div></details>
+<div class="zh"><p>本作拥有广阔的场地，因此像排风管冒烟这类通用演出由系统自动配置。具体是遍历 World Composition（关卡流送框架），搜索表中指定的 mesh 组件，在相应位置自动创建关卡，并配置预先设定好的声音与粒子。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这是一条编辑器/构建期的批处理管线：遍历 World Composition 的子关卡，按数据表匹配指定的 mesh 组件（如排风管模型），命中处自动创建子关卡，放入预配置的声音与粒子 Actor。产物是普通内容资产——自动生成，但落地为标准关卡，运行时走既有流送。</p>
+<p class="ex-sub">【设计动机】手工摆放成百上千个蒸汽源的维护成本不可接受：城市美术一改模型或位置，手摆特效全要人肉同步。改为"从场景事实推导配置"，特效永远与美术现状一致，重跑即再生成。</p>
+<p class="ex-sub">【取舍】（1）生成粒度是"创建关卡"而非 ISM 批量实例——因为每个点位是 Niagara+音频的组合 Actor，不是纯 mesh；用子关卡承载恰好搭上 World Composition 的按距流送，顺带获得"远处不活跃"的免费 LOD。（2）表驱动=可审计：哪些 mesh 触发哪种特效，一张表说清。（3）代价是构建期扫描的时效性：美术改动后必须重跑生成，讲演未提是否在 cook 前自动触发——若靠手动重跑，就是典型的"生成物漂移"风险。</p>
+<p class="ex-sub">【现代对照】UE5 PCG 框架即此模式的官方化：输入网格/表面/标签→规则图→按 World Partition 分块输出实例与 Actor，并与 HLOD 联动；The Matrix Awakens 的 City Sample 用 PCG+规则化资产铺出城市细节；Insomniac《漫威蜘蛛侠》对曼哈顿的流送分块与按街区烘焙交互内容，是同一思想更早世代的实践。</p></div>
+</article>
+</section>
+<section class="chapter" id="vat">
+<header class="ch-head"><span class="ch-en">VAT: Vertex Animation Textures</span><h2>VAT 的运用</h2></header>
+<div class="sec-h"><h3>VAT 的运用</h3><span class="sec-h-en">VATの活用</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>从 FO 的运行时组织转入资产侧技术。本小节讲 VAT（顶点动画纹理）：把骨骼/顶点动画烘焙进贴图、由顶点着色器采样，从而以静态网格体+实例的方式大规模呈现动画。案例覆盖剪影群、伞群、鸦群、水之印四种典型用途，最后给出 5000 多边形×30fps×4 秒的量产规制——是全文少见的带量化指标的段落。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作において、VAT（VertexAnimationTexture）は大量のスケルタルメッシュを放置できないシーンや、水などの表現を行う場合に使用されています。</div></details>
+<div class="zh"><p>在本作中，VAT（Vertex Animation Texture，顶点动画纹理）用于无法放置大量骨骼网格体的场景，以及水等的表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】VAT 把"顶点位置随时间的变化"烘进贴图：骨骼法（每骨骼变换存进纹理，顶点着色器按蒙皮权重重建）或逐顶点偏移法（每顶点每帧存偏移直接采样叠加）。动画网格体由此退化为静态网格体，可走实例化渲染（ISM/HISM），一个 draw call 画成百上千个体——这正是"放不下大量骨骼网格体"场景的解：UE4 骨骼网格体每实例都有独立动画求值与 draw call 成本，百体级立刻爆预算。</p>
+<p class="ex-sub">【取舍】（1）烘焙即冻结：不能运行时混合动画、不能 IK、不能按 gameplay 改姿态——适合背景性群体，不适合主角级交互。（2）贴图成本随顶点数×帧数×精度增长，量化控制正是后文 5000×30×4 规制的由来；16bit 半精度是位置通道的常规选择。（3）法线重建质量决定光照可信度，需额外法线贴图或八面体编码，水面用途对法线精度尤其敏感。（4）资产管线依赖 Houdini（SideFX Labs 的 VAT 工具链是 UE 生态事实标准），美术工作流要从 DCC 重走一遍。</p>
+<p class="ex-sub">【局限】VAT 与流送的配合有坑：位置贴图若进流送系统，首次采样会有加载延迟导致动画瞬移，通常强制常驻内存——这笔常驻开销讲演未提。</p>
+<p class="ex-sub">【现代对照】UE5 的 ML Deformer 与骨骼形变保留解决的是另一端（少量高质量角色）；群体规模的官方答案仍是 VAT+ISM（City Sample 的人群车流同理）；《鸣潮》在 UE4 底座上自研落地 Lumen 级轴光线追踪（Unreal Fest Tokyo 2025 讲演）与本作同属"UE4 上自研拼先进特性"的案例，可互相印证。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">VATを用いた「残留思念」の演出。残留思念の後ろにシルエットの痕跡が残る演出であり、同社の過去作品でも多用されてきたとのこと。シルエットが数十体残る演出のため、処理負荷の観点からVATが使用されている。残留思念のモデル自体はStatic Meshだが、シルエット部分はインスタンスとの切り替えが可能で、状況に応じて使い分けされている</div></details>
+<div class="zh"><p>使用 VAT 的"残留思念"（残留的意念，死者残留的记忆影像）演出。这是在残留思念身后留下剪影痕迹的演出，据称在 Tango 过去的作品中也常被使用。由于要让数十个剪影残留，从处理负载的角度出发使用了 VAT。残留思念的模型本体是 Static Mesh，但剪影部分可以与实例（instance）切换，按状况区分使用。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】分工很清晰：本体只有一件需要"真的在那"（Static Mesh，可交互、可特写），身后数十个剪影是 VAT+实例——只需"看起来在动"。可在实例/非实例间切换，应是为近景单体强调与远景群体两种情形各取最优路径。</p>
+<p class="ex-sub">【设计动机】数十体剪影若走骨骼网格体，每体都是动画求值+draw call；VAT 后是一个 draw call 的实例群。而"剪影"恰好是 VAT 全部弱点的绝缘场景：不需要材质细节、光照极简、动画短循环——VAT 的短板（法线质量、动画混合）被表现需求整体绕开，教科书级的适配选型。</p>
+<p class="ex-sub">【取舍】剪影与本体的一致性要美术保证（同一动作的 VAT 烘焙与本体动画对齐）；数十体的相位错开需要逐实例时间偏移。</p>
+<p class="ex-sub">【现代对照】这类"剪影回放"演出亦可用 Niagara 的网格体粒子或录制轨迹实现；UE5 下 VAT+ISM 仍是群体剪影的性价比之王。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">地下から大量の傘が浮き上がるシーンの演出では、先述した大量のスケルタルメッシュを出すことを防ぐことも含め、Cascadeで制御することも考えてVATが使用されている</div></details>
+<div class="zh"><p>地下大量雨伞浮起的场景演出中，考虑到前述"避免输出大量骨骼网格体"等因素，也考虑过用 Cascade 控制，最终使用了 VAT。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】伞群同理：每把伞都在动，但个体动画简单且互不需要差异化 gameplay 状态——VAT+实例。讲演特别提到"也考虑过用 Cascade 控制"：用粒子系统的 mesh 渲染器输出动画 mesh 也是一条路（粒子驱动旋转/上浮），说明团队做过真实选型而非惯性套用。</p>
+<p class="ex-sub">【取舍】Cascade 路线的好处是运动可完全程序化（每把伞轨迹可不同），坏处是 UE4 的 mesh 粒子在着色与阴影路径上是二等公民（光照质量、投影支持都不全）；VAT 反之——动画固定但着色全功能。选型本质上是问"这场戏要轨迹多样，还是材质/光照正确"。</p>
+<p class="ex-sub">【设计动机】伞从地下涌出的镜头是固定演出的过场性质内容，动画可预先编排，于是烘焙 VAT 的"固定"不再是缺点。</p>
+<p class="ex-sub">【现代对照】UE5 Niagara 的骨骼网格体粒子与 VAT 模块把两条路的差距拉平了些；Niagara Sims 亦可在模拟侧生成每实例轨迹。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">ひとつのインスタンスとStatic Meshコンポーネントで、カラスを大量に出現させている。範囲インスタンスランダムでアニメーションのスピードやスケールに若干の差を出して表現</div></details>
+<div class="zh"><p>用一个实例与 Static Mesh 组件让乌鸦大量出现。通过范围实例随机（Range Instance Random）让动画速度与缩放产生些许差异来表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】鸦群是 VAT 实例化的极简示范：一个实例化静态网格体组件承载全部乌鸦，材质里用"范围实例随机"（对实例 ID 哈希取随机值）微调动画速度与缩放，让群像不呆板。随机值在实例化材质里逐实例计算，零 CPU 参与——"速度随机化"实为对 VAT 时间轴采样的相位/速率做逐实例抖动。</p>
+<p class="ex-sub">【取舍】逐实例随机只能改标量级差异（速度、缩放、相位），不能改动画内容本身；种群级的扑翼姿态变化仍需多套 VAT 或骨骼方案。此外实例化意味着整体一个 LOD 梯队，近景特写单鸦会露馅，需切换单体骨骼方案。</p>
+<p class="ex-sub">【现代对照】这正是 UE 生态"逐实例随机"材质节点的标准玩法，UE5 的 Per Instance Data 与 PCG 摆放规则把"差异从哪来"进一步系统化；《对马岛之魂》鸦群、《漫威蜘蛛侠》鸽群皆是同型实现。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、「水の印」の表現についても解説。こちらは水の表現をモーフやスキンで表現することができなかったので、VATを採用したとのことです。</div></details>
+<div class="zh"><p>此外还讲解了"水之印"（水の印，水之印记）的表现。据称由于水的表现无法用变形（morph）或蒙皮（skin）实现，因此采用了 VAT。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"水之印"说明 VAT 不只用于"群体替代骨骼"，还是可编程形变的载体：水的涌动、汇聚若用变形目标做，UE4 的 morph 求值按顶点数线性增长且难实例化；用蒙皮做则被骨骼数量与拓扑绑死。VAT 把任意顶点级时间序列（Houdini 里模拟出的水体动画）烘成贴图，顶点着色器采样即得，完全数据驱动。</p>
+<p class="ex-sub">【设计动机】一旦形变来源换成 DCC 模拟器（Flip 流体/海洋工具），表现上限就脱离引擎骨骼与变形系统的能力圈，美术能拿到"模拟级"的水细节——这正是变形/蒙皮"做不到"的本质。</p>
+<p class="ex-sub">【取舍】与所有 VAT 一样：固定时长循环、法线烘焙质量决定光照观感、贴图常驻内存。作为"重要表现"，它落在后文量产规制的豁免清单里。</p>
+<p class="ex-sub">【现代对照】UE4.26+ 的水体插件（单层水体材质、Flow Map）与 UE5 的 Water 系统是官方水面方案；但"模拟烘焙+VAT 播放"仍是标志类魔法阵/水演出中可控性最高的路线。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">「水の印」のような重要表現を除き、一般的なVATのレギュレーションは5000ポリゴン以内かつ30fpsで4秒以内となっています。ポリゴン数×FPS×尺の値が下回れば良いため、ポリゴン数を優先させてアニメーション尺を狭める等の対応も行われていました。</div></details>
+<div class="zh"><p>除"水之印"这类重要表现外，一般 VAT 的规制为 5000 多边形以内、30fps、4 秒以内。只要"多边形数×FPS×时长"的乘积低于上限即可，因此也采取了优先保证多边形数、压缩动画时长等对策。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"5000 多边形以内×30fps×4 秒以内"的实质是对 VAT 贴图预算的乘积约束：位置贴图数据量 ≈ 顶点数×帧数×通道精度，5000×30×4 = 60 万顶点样本，乘上 RGB 通道即贴图像素量级——把乘积封顶，等于同时封顶贴图内存、带宽与顶点着色器采样压力。允许"以时长换多边形"（乘积守恒内自由分配）很成熟：短而快的演出（一刀斩击）可换更高模型精度，长而缓的循环（水面）压多边形。</p>
+<p class="ex-sub">【设计动机】无规制的 VAT 会恶性膨胀：美术天然想加帧求顺滑、加顶点求细节，乘积爆炸最先打死流送与内存。给出乘积上限后，美术在预算内自主调度，无需逐案评审——这是把技术预算下放为创作自由的标准管理手法。</p>
+<p class="ex-sub">【取舍】30fps 烘焙意味着着色器必须双帧插值采样（线性过滤），快速运动有轻微步进感，4 秒尺度内可接受；"重要表现除外"的豁免（水之印）说明规制是指导价而非红线，主角级演出走单独预算——量产规制与重点演出分账，是产能与品质的常规分工。</p>
+<p class="ex-sub">【局限】规制只管量不管质：同预算下糟糕的烘焙法线或 UV 伸展照样毁光照，讲演未提质检侧配套。</p>
+<p class="ex-sub">【现代对照】City Sample 的群体资产同样以预算化 VAT 铺量；UE5 的 Nanite 解决的是静态 mesh 的多边形自由，骨骼/VAT 侧的官方自由化（Nanite 骨骼网格体）尚在实验期——本作这套乘积规制到今天依然成立。</p></div>
+</article>
+</section>
+<section class="chapter" id="weather">
+<header class="ch-head"><span class="ch-en">Weather: Fog, Cloud Sea, Rain</span><h2>改变街道气息的天气表现</h2></header>
+<div class="sec-h"><h3>改变街道气息的天气表现</h3><span class="sec-h-en">街の気配を変える天候の表現</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节从资产技术转入大气与天气渲染：近景/远景/云海三层雾的体系、键控贴图驱动的状态分发、以及刻意简化的雨雪。这是全文里最"图形学"的一节，也是自研成分最重的一节——UE4 原生体积雾被绕开，代之以粒子+光线步进+自绘贴图更新管线的组合。雾在本作还承担叙事功能（秽气覆盖的涩谷），因此"可编辑、可被游戏事件改写"与渲染质量同等重要。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">雨や霧、嵐と言った天候の表現も実装されています。霧表現は近景、遠景、霧に覆われた雲海という3つの表現で構成されており、いずれも霧の発生状況をテクスチャに書き込んだキーマップを参照しています。</div></details>
+<div class="zh"><p>雨雾风暴等天气表现也已实现。雾的表现由近景、远景、被雾覆盖的云海三部分构成，它们都参照把雾的发生状况写入贴图的键控贴图（key map）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】三层雾的划分是按"相机距离+高度"的分层近似：近景靠跟随相机的体积雾粒子，远景靠后处理光线步进，高空切云海——单靠任何一种技术都无法覆盖从贴脸到都市尺度的全范围，分层是必然而非炫技。三者统一从键控贴图（记录雾发生状况的 2D 图）取状态，保证一致性：近景看到的雾团，走到远处看同一片区域，浓度与消散对得上。</p>
+<p class="ex-sub">【设计动机】雾在本作是 gameplay 语义（秽气聚集、神社未解放），不能只是大气装饰，必须可编辑、可状态化、可被游戏事件改写——键控贴图把雾从"渲染参数"升格为"世界状态"，关卡设计师可以像画关卡一样布置雾。</p>
+<p class="ex-sub">【取舍】2D 键控贴图只有 XY、无高度维度，垂直方向的雾变化只能靠三层各自实现补充，衔接处的一致性要人工把控。</p>
+<p class="ex-sub">【现代对照】UE4.26 的 Volumetric Cloud/Sky Atmosphere 与 UE5 的 Lumen 是引擎原生化方向；"美术可绘制的世界状态图+多技术消费"的结构，UE5 里最接近的是 RVT 与 PCG 属性图。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">近景の霧は、ボリュームフォグパーティクルを設定し、プレイヤーカメラに追従させることで表現しています。霧マップを参照しながら描画しているため、一見すると追従しているように見えません。また、近景の霧は当初レイトレーシングには映らない仕様だったそうですが、改造を施すことで映り込みにも対応しています。</div></details>
+<div class="zh"><p>近景的雾通过设置体积雾粒子并让其跟随玩家相机来表现。由于是一边参照雾贴图一边绘制，乍看之下察觉不到它在跟随。另外，近景的雾当初在光线追踪中是映不出来的规格，但通过施以改造，也支持了在反射中的映现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】近景雾 = 挂在相机上的体积雾粒子发射器 + 噪声材质，每帧跟随相机移动；但采样时用世界坐标 UV（而非粒子自身 UV）去读雾贴图，雾团的视觉位置锚在世界空间——相机移动时"追不上来"，于是"乍看不觉得在跟随"。这是"相机锁定发射器+世界空间采样"的经典障眼法。</p>
+<p class="ex-sub">【取舍】粒子路线 vs UE4 原生体积雾（体积光照体素）：原生体积雾与光源雾卡通配更好，但 UE4 时代它的体素分辨率与注入成本使"贴脸浓雾"观感不足；粒子+半透明材质可控性高，代价是半透明排序、与景深/后处理的合成顺序，以及——讲演亲口确认的——光线追踪里照不出来。</p>
+<p class="ex-sub">【机制·RT 补丁】UE4 的 RT 反射只对 G-Buffer 不透明几何与天空求交，半透明粒子天然缺席；"施以改造"应指把雾粒子（或其简化代理）纳入 RT pass。这类改动深度触及渲染器源码，是自研改动的又一处隐性维护点，讲演一笔带过但含金量不低。</p>
+<p class="ex-sub">【现代对照】UE5 Lumen 反射走屏幕空间+Surface Cache，半透明同样难进反射，问题延续；TSR 对半透明雾粒子的时序稳定性也需额外处理。若今天做，官方 Volumetric Cloud/Fog 体积或"相机域雾体积+世界空间流动噪声"是更省的路径。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">遠景の霧の表現は、近影影の範囲外をポストプロセスでレイマーチをして表現しています。</div></details>
+<div class="zh"><p>远景的雾，是对近景（雾）范围以外的区域以后处理做光线步进（ray marching）来表现的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】远景雾 = 全屏后处理光线步进，作用范围是"近景雾覆盖之外"：近景粒子负责近距离的密度与视差，远处密度由光线步进从键控贴图积分得出，两层在交界处淡出衔接。屏幕空间步进从相机沿视线采样雾贴图与高度衰减并积分，成本与步数强相关，只做远景（步距可放大）是标准省法。</p>
+<p class="ex-sub">【取舍】原文"近影影"应为"近景"（原文如此，按"近景雾的范围之外"理解）。后处理路线的固有短板：步距放大带来的带状跳变需抖动+时序平滑掩盖；与半透明物、与云海层的混合层次要手工排。</p>
+<p class="ex-sub">【现代对照】这就是体积介质的标准射线积分，UE4 的 Exponential Height Fog、UE5 的场景体素雾都是它的引擎化形态；本作把它限制在远景带，是"分层近似"里最保守也最稳的一层。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">都市に敷き詰める雲海の表現は、高いところから街を見下ろした時にのみ発生します。近景、遠景の霧の表現では、高所から見下ろしたときの見た目を維持できないため、プレイヤーキャラが一定以上高い場所に上がった場合に雲海の表現に切り替わるように設定しています。こちらもレイマーチによって実装されていますが、ポストプロセスではなく実際にメッシュを配置しているとのことです。</div></details>
+<div class="zh"><p>铺满都市的云海表现只在高处俯瞰街道时发生。近景、远景的雾无法维持从高处俯瞰时的观感，因此设置为玩家角色升到一定高度以上时切换为云海表现。云海同样以光线步进实现，但据称不是后处理，而是实际配置了 mesh。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】云海与远景雾同为光线步进，但载体是"实际配置的 mesh"（覆盖都市的大体积盒/球），在 mesh 的半透明材质里步进，而非全屏后处理。</p>
+<p class="ex-sub">【设计动机】从高空俯瞰时后处理方案会崩坏：全屏步进要覆盖数公里深的视线，步数爆炸；且云海要被地标建筑穿破、在楼体侧面有正确的高度截面——这需要真实几何提供深度、法线与遮挡关系，全屏 pass 给不了。mesh 载体让云海成为"世界里的一个物体"：被楼穿破、被相机进入、与天空盒正确合成——楼顶从云里冒出的天际线构图（本作的关键视觉）恰恰依赖这种几何级遮挡。</p>
+<p class="ex-sub">【取舍】体积 mesh+步进是 UE4 时代"手搓 volumetric cloud"的通行做法，难点在云边缘的噪声 LOD（近处细节、远处步距放大）与半透明排序（整块 mesh 是一个排序单位，内部靠步进自遮挡）。"升到一定高度才切换"是明确的 LOD 化：三套系统各自服务的视角区间互不重叠，典型的分域近似。</p>
+<p class="ex-sub">【现代对照】UE4.26+/UE5 的 Volumetric Cloud 组件把这一层官方化，The Matrix Awakens 的 City Sample 用它做城市上空的云层并支持穿云飞行；本作的手搓 mesh 步进在当时是主流自研方案。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">これら3種類の霧に使用されている霧マップについても解説。これは都市マップ全体を上空から見たXY座標の霧の発生状況をテクスチャに投影したもので、プライマリ、セカンダリ、演出バッファを持つ3枚で構成されており、レベルデザイナーが霧を配置しています。</div></details>
+<div class="zh"><p>也讲解了这三种雾所使用的雾贴图。它是把都市地图整体的雾发生状况按从上空俯视的 XY 坐标投影到贴图上的产物，由主缓冲（primary）、副缓冲（secondary）、演出缓冲三张构成，雾由关卡设计师来布置。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】雾贴图 = 把都市 XY 平面（上空正射投影）的雾发生状况写进一张纹理，世界坐标到 UV 的映射由地图包围盒决定；任何系统（近景粒子、远景步进、云海）都从它取"此处有没有雾、多浓"。三张缓冲分工：primary 是当前生效态，secondary 是绘制中的下一态，演出缓冲是叠加流动噪声与游戏事件演出的活跃层——双缓冲+演出层的经典三件套。</p>
+<p class="ex-sub">【设计动机】把雾的分布做成美术可绘制的 2D 数据而非程序噪声，是因为本作的雾承担叙事（秽气覆盖的涩谷）：哪里有雾、何时散开都是设计意图，必须可编辑、可评审，所以由关卡设计师布置。</p>
+<p class="ex-sub">【取舍】XY 单层贴图无高度信息，垂直雾变化只能靠消费端假设；贴图分辨率决定雾团最小尺度，都市级单图难免块状，需消费端噪声调制掩盖；设计师手绘大地图的雾，编辑体验与精度都是挑战（讲演未提工具形态，推测编辑器内刷绘或按区域放置）。</p>
+<p class="ex-sub">【现代对照】"世界状态写进纹理、渲染端多方采样"的架构，UE5 的对应物是 RVT（可写、分块流送、自动 LOD）与 PCG 属性图；地图级状态图的做法在 Ubisoft 的城市级复刻（《看门狗》系列的环境状态图）中亦见同型。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">霧マップは内円と外円でフェードの幅を指定でき、霧の描画マネージャーに独自の描画コマンドとして搭載されています。描画マネージャーは指定された情報を解釈して、4，5フレームかけてセカンダリバッファへ描画します。コマンドをすべて処理し終えると、プライマリとセカンダリをフリップします。</div></details>
+<div class="zh"><p>雾贴图可用内圆与外圆指定淡出的宽度，并作为独自的绘制命令搭载于雾的绘制管理器中。绘制管理器解释被指定的信息，花 4～5 帧向副缓冲绘制。全部命令处理完毕后，主缓冲与副缓冲翻转。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】这段把雾贴图的更新机制讲清了：雾的放置信息以自定义绘制命令（带内外圆淡出的软边刷子）提交给雾绘制管理器；管理器解释命令，花 4～5 帧把结果逐步画进副缓冲，全部命令跑完再主/副翻转——命令队列+双缓冲+跨帧摊销，一个手写的微型 2D 渲染管线。</p>
+<p class="ex-sub">【设计动机】为什么要摊销：整图重画（全城雾刷子）若单帧完成，一帧的成本尖峰就是一次卡顿；雾是慢变化对象，4～5 帧的更新延迟完全无感——让更新频率匹配变化频率，是教科书级的"用延迟换平滑"。内外圆淡出（内圈全值、外圈渐零）使每次绘制是软边刷子，避免硬边。</p>
+<p class="ex-sub">【取舍】自绘命令系统等于自造一个小 RDG：命令格式、执行调度、资源生命周期全要自己管——好处是完全可控（优先级、合并、摊销节奏），坏处是引擎演进（RDG 化、RHI 变更）时要人肉跟进。翻转机制天然带最高 4～5 帧的旧态延迟，对交互式改写（后文神社解放）的即时性要靠演出缓冲补。</p>
+<p class="ex-sub">【现代对照】UE5 的 Render Graph（RDG）把"跨帧摊销的资源更新"自动化；面向内容的等价物是 RVT 的按需分块更新（只画用到的 tile）；用 Niagara Data Channel 也可让 GPU 侧直接写雾状态。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">プライマリとセカンダリバッファの更新は4，5フレームに1度。インタラクティブ性を担保するために、毎フレームごとにプライマリバッファを参照しながら演出バッファに雲のように流れるノイズを書き込んでいる</div></details>
+<div class="zh"><p>主缓冲与副缓冲的更新为每 4～5 帧一次。为了担保交互性，每帧都会一边参照主缓冲，一边向演出缓冲写入云一般流动的噪声。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】主/副四五帧一更，但每帧都参照 primary 往演出缓冲写流动噪声——把"状态"（哪里有雾，慢更新）与"运动"（雾在流动，每帧更新）两层分离：演出缓冲 = primary 的慢状态 × 每帧平流的噪声；消费端全部只读演出缓冲，于是雾永远在动、状态却四五帧才变。</p>
+<p class="ex-sub">【设计动机】若消费端直接读 primary，雾会呈"静帧跳变"——每 4～5 帧换一张静态图，肉眼立刻识破；叠加流动噪声后，低频更新被高频细节掩盖。与阴影贴图、irradiance 体积这类慢更新技术靠噪声或时序抖动掩盖更新频率，是同一手法。</p>
+<p class="ex-sub">【取舍】演出缓冲的噪声每帧全图重写也是一笔固定成本，但它只是噪声合成（无命令解释），远轻于雾刷子管线。</p>
+<p class="ex-sub">【现代对照】"慢资源+快细节"的折衷在时序技术上随处可见：TSR 的历史复用、Virtual Shadow Maps 的分页更新都在同款结构里做文章。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、パーティクルやボリュームフォグは演出バッファをキーマップとして参照しています。これらは神社を開放したときに霧が晴れる演出にも活用されています。</div></details>
+<div class="zh"><p>另外，粒子与体积雾把演出缓冲作为键控贴图参照。它们也被用于解放神社时雾散开的演出。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】近景粒子与体积雾直接把演出缓冲当键控贴图采样——消费端统一挂在最实时的一层上，三层缓冲的设计在此收口：任何雾相关表现读的都是同一张带流动噪声的活跃图，视觉天然一致。</p>
+<p class="ex-sub">【设计动机】神社解放的散雾演出是整套架构的 payoff：游戏事件往绘制管线写命令→雾贴图更新→所有消费端（粒子、体积雾、远景步进）自动跟随变化——一个状态源驱动 N 个表现系统，正是键控贴图架构的复利。</p>
+<p class="ex-sub">【取舍】演出即时性受 4～5 帧更新节奏约束：爆发式散雾若走 primary 命令队列，最高有 4～5 帧延迟；推测急促演出由演出缓冲直接叠加或消费端整体浓度标量兜底，讲演未细说。</p>
+<p class="ex-sub">【现代对照】"单一世界状态纹理驱动多渲染端"在 UE5 由 RVT/数据通道承接；《漫威蜘蛛侠》系列的天气系统与 Ubisoft 的环境管线亦是同一公共模式。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">一方、雨や雪はかなりシンプルで、カメラ周辺にだけパーティクルを降らせることで表現しています。屋内などで雨が表現されないように雨マップも設定されていますが、霧マップと違って静的なものになっています。</div></details>
+<div class="zh"><p>另一方面，雨和雪相当简单，只在相机周边降下粒子来表现。为了让室内等处不出现雨，也设置了雨贴图，但与雾贴图不同，它是静态的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】雨雪走最朴素的路线：发射器挂相机、只在玩家周围一坨粒子——雨的视觉本质是"身边的雨丝"，天上有没有云玩家并不查证；雨贴图（静态）标记哪里下雨/室内不落雨，粒子与音效按图开关。</p>
+<p class="ex-sub">【取舍】与雾贴图的对比是有意为之：雾是叙事级、要动态演化，雨只是氛围——静态图+固定粒子足够。两套系统复杂度差一个量级，体现了"按表现重要性分配技术预算"的清醒。相机域粒子的固有缺陷是相对运动失真（急转头/快速移动时雨显得"跟着走"），需要世界空间锚定或速度补偿。</p>
+<p class="ex-sub">【现代对照】《战神》《对马岛之魂》的雨皆是相机域粒子+贴图遮罩的同款；UE5 官方示例（Niagara 雨滴+屏幕效果+水面涟漪）已把这套模式组件化。</p></div>
+</article>
+</section>
+<section class="chapter" id="mpc">
+<header class="ch-head"><span class="ch-en">Controlling Scale with MPC</span><h2>用 MPC 控制庞大物量的表现</h2></header>
+<div class="sec-h"><h3>用 MPC 实现控制庞大物量的表现</h3><span class="sec-h-en">MPCを利用し、膨大な物量を制御した表現を実現</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节讲材质参数集合（MPC）如何充当"全局游戏状态→着色器"的广播通道：敌人接近、前兆演出、湿润、水洼、停电，全部经它把 CPU 侧状态每帧推给成千上万个材质。段落顺序有讲究：先立规矩（每材质最多两个 MPC、禁野路子 MPC），再给案例——治理先于使用，是本节最有工程味的地方。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">続いて、マテリアルパラメーターコレクション（MPC）について説明。ゲーム中、多くのマテリアルに関わる仕様のパラメータを中心に登録しています。ひとつのマテリアルが参照できるMPCはふたつまでと決めており、チーム内で混乱を避ける意図で「野良MPCの作成禁止」などのルールとして決めていたとのこと</div></details>
+<div class="zh"><p>接着说明材质参数集合（MPC，Material Parameter Collection）。游戏中以众多材质相关的规格参数为中心进行注册。团队决定一个材质可参照的 MPC 最多为两个，并以"禁止创建野路子 MPC（野良MPC）"等规则来避免团队内的混乱。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】MPC 是引擎级"全局 uniform 常量组"：一组命名标量/向量，游戏线程每帧写入，渲染时对场景中引用它的所有材质可见、一次上传全体共享——成本与"多少材质读它"无关，天然的广播通道。本作把天气、湿润度、敌人位置、全局自发光强度等集中注册，是对这一特性的正确使用。</p>
+<p class="ex-sub">【取舍·两条规则的来历】"一个材质最多参照两个 MPC"不是引擎硬限制，而是治理规则。其一，每个被参照的 MPC 都是材质的编译依赖与常量绑定，引用越多，材质资产与 MPC 资产的耦合图越乱，改名/删除时的连锁断裂越难查。其二、也更重要的，是语义治理：放任自流，团队很快会长出"每功能一个 MPC"的草原——参数重复、所有权不清、互相覆盖（两个 MPC 都想驱动湿润度时谁赢？），调试时无法回答"这个材质的颜色到底受谁影响"。"禁野路子 MPC"与"最多两个"配套，实质是：全局状态只能进官方登记的一两个集合，想加参数先评审归属——把着色器全局状态当公共 API 管理，而非私人变量。</p>
+<p class="ex-sub">【局限】MPC 只支持标量/向量，不支持纹理型数据；参数多到几十个后，向量打包与索引约定又变成新的隐性契约。</p>
+<p class="ex-sub">【现代对照】UE5 仍以 MPC 承担此职；更细的状态广播已有官方替代：Niagara Data Channel（纹理级）、Scene View Extension 注入自定义 uniform、材质里的逐实例数据。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">MPCが使用されている事例。プレイヤーに近い位置の敵を8体分常に書き込んでいるため、一番近い敵との距離も取得可能</div></details>
+<div class="zh"><p>MPC 的使用案例。由于始终写入离玩家最近的 8 个敌人的位置，因此也能取得与最近敌人间的距离。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】CPU 每帧选出离玩家最近的 8 个敌人，把位置写进 MPC 向量数组；任意材质可在像素着色器里遍历这 8 个位置做距离计算，取最近敌距离就是循环 8 次取 min。</p>
+<p class="ex-sub">【取舍】固定 8 体是很讲道理的预算：着色器内逐像素循环次数写死，波前占用与寄存器压力可控；超出 8 体的远处敌人本来也不该触发"近敌"表现，截断无感。CPU 侧每帧选 8 体是 O(敌人数) 的廉价操作。</p>
+<p class="ex-sub">【局限】逐像素遍历 8 个向量的成本乘以全屏像素仍非零，只应放在确实需要近敌信息的材质上；且位置是点而非胶囊/体积，贴脸判定会有偏差。</p>
+<p class="ex-sub">【现代对照】"近邻 K 个写进 uniform"的手法在湿润、践踏水花、敌人感知发光等效果中通用；数据量更大时 UE5 可换 Data Channel 或结构化缓冲——8 个向量绰绰有余。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">MPCは敵が近づいた時に室内のシャッターが動いたりモニターが明滅したりする「予兆演出」にも使用されています。これらの演出はシェーダー内でMPCを参照することで実行されています。</div></details>
+<div class="zh"><p>MPC 也用于敌人接近时室内卷帘门动作、显示器明灭等"前兆演出"。这些演出通过在着色器内参照 MPC 来执行。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】前兆演出 = 着色器内拿"到最近敌人的距离"（上一段的 8 体位置）当触发阈值：距离小于阈值，就给卷帘门/显示器材质加抖动/闪烁权重。全程无 CPU 逐 Actor 逻辑，状态对一切符合条件的表面自然生效。</p>
+<p class="ex-sub">【设计动机】把"敌人接近的不安感"做成环境级反应：逐 Actor 挂蓝图逻辑既贵又漏（新增物件要记得挂）；改为材质侧读 MPC，规则一次写进材质，任何用该材质的物件自动接入——表现覆盖率满分，边际工程成本为零。</p>
+<p class="ex-sub">【取舍】着色器侧逻辑拿不到事件语义（不知道是哪种敌人、是否已被发现），只能按距离标量反应；精细编排仍需 CPU 侧参数配合，属于"氛围反应"而非"定向演出"。</p>
+<p class="ex-sub">【现代对照】Ubisoft、Insomniac 的城市"惊吓反应"（路灯闪烁、电视雪花）皆同型：全局威胁状态广播+材质侧消费。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、プレイヤーや建物の濡れ具合もMPCで表現されています。雨が降ると壁や傾斜のある場所で水が流れ始める表現が行われます。</div></details>
+<div class="zh"><p>此外，玩家和建筑的湿润程度也用 MPC 表现。下雨时，墙壁和有坡度的地方会出现水开始流动的表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】湿润度是 MPC 最典型的标量广播：雨强写入 MPC，墙材/地面材质按湿润参数压低粗糙度、压暗反照率、在倾斜处让流动纹理显现——"水开始流"是预烘的流动贴图按湿润度加权出现，不是真模拟。</p>
+<p class="ex-sub">【设计动机】全城同步湿润必须零 CPU 分发：几千种材质若各自查询天气状态，对象数×材质数爆炸；MPC 一遍广播，所有表面同帧一致地变湿，玩家感知到的"整条街在淋雨"正是这种一致性的产物。</p>
+<p class="ex-sub">【取舍】全局标量无空间差异（全城同时同湿），局部雨/过渡带做不了；本作靠雨贴图与演出缓冲补空间维度，此段未展开细节。</p>
+<p class="ex-sub">【现代对照】《对马岛之魂》《最后生还者 第二章》的湿润系统同样是"雨强标量+材质响应"的广播型实现，属业界通解。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">水たまりや波紋の表現にもMPCが利用されている。雨の強度によって水たまりが発生</div></details>
+<div class="zh"><p>水洼与涟漪的表现也利用了 MPC。水洼随雨强而发生。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】水洼与涟漪继续消费 MPC 的雨强：水洼"发生"即湿润度超阈值后，材质里预置的水洼遮罩/噪声逐渐加深呈现积水；涟漪则是雨强驱动法线扰动贴图的强度。全部静态预置、参数加权，零模拟。</p>
+<p class="ex-sub">【取舍】水洼位置由贴图/噪声预先决定，不能真在低洼处汇流（那需要地形数据参与，UE5 的 Water 系统才提供）；好处是成本恒定、可控性满分——雨停后倒放参数即退水。</p>
+<p class="ex-sub">【局限】玩家踩水洼的交互涟漪通常要另一套（贴花/粒子），此段未提，推测亦为贴花方案。</p>
+<p class="ex-sub">【现代对照】UE4.26+/UE5 的水体插件（地表水+涟漪渲染）是官方进化版；《漫威蜘蛛侠》雨中水洼的 Puddle Mask 是同款实现。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">最後に停電の表現もMPCで行われている。看板などのエミッシブ系マテリアルは、MPCを介してグローバルのインテンシティを共有。停電演出ではソロパラメーターに対して、点滅アニメーションからの停電という処理を行っている</div></details>
+<div class="zh"><p>最后，停电的表现也由 MPC 完成。招牌等自发光系材质通过 MPC 共享全局强度。停电演出中对单独参数执行"从闪烁动画到停电"的处理。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】停电是 MPC 广播的极致案例：全城招牌、路灯、室内灯的自发光材质都乘同一个"全局强度"标量；停电演出对该标量（讲演称"单独参数/ソロパラメーター"，即专用的独立参数）驱动一条"先闪烁、后归零"的曲线——CPU 每帧写一个 float，整座涩谷的灯光编排完成。</p>
+<p class="ex-sub">【设计动机】停电是本作叙事的关键节拍（城市失能的恐怖），必须全城一致、与演出时间轴精确同步；若逐招牌挂逻辑，几千个 Actor 的时序一致性既贵又脆。MPC 把"城市灯光"抽象成一个标量旋钮，音效、脚本、材质全都对同一旋钮编程——单一状态源原则的又一次胜利。</p>
+<p class="ex-sub">【取舍】全局单标量意味着所有灯光同步闪烁，做不了空间波纹式传播（电网逐片熄灭）；若要"停电波从远方推来"，需把标量换成 MPC 向量（传播圆心+半径）或贴图，讲演未提是否做过。闪烁动画放 CPU 侧写 MPC，更利于与音效对位。</p>
+<p class="ex-sub">【局限】依赖纪律：所有自发光材质必须"自觉"乘这个参数——漏乘的招牌会在停电夜里独亮。这类一致性要靠材质模板与评审保证，正是前段 MPC 治理规则要解决的问题。</p>
+<p class="ex-sub">【现代对照】"全局灯光状态标量"在《赛博朋克 2077》的停电/烧毁演出、《漫威蜘蛛侠》的电网事件中同型；UE5 配合 Data Channel 可做出空间化的停电波。</p></div>
+</article>
+</section>
+<section class="chapter" id="niagara">
+<header class="ch-head"><span class="ch-en">Niagara Techniques</span><h2>由 Niagara 实现的表现</h2></header>
+<div class="sec-h"><h3>由 Niagara 实现的表现</h3><span class="sec-h-en">Niagaraによる表現</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节短小，交代特效栈从 Cascade 向 Niagara 的迁移动因，并给两个自研模块案例（网格体表面采样、样条线参照）。它是理解本作 Niagara 使用深度的标尺：团队不是全盘接受官方模块库，而是在量产同时自写裁剪版模块补功能缺口——与 FO 的"自研封装"思路一脉相承。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">エフェクト制作はNiagaraを使用しています。当初はCascadeだけで運用されていましたが、開発途中からNiagaraでしか表現できないことが増えてきたことで導入が進んだとのことです。</div></details>
+<div class="zh"><p>特效制作使用 Niagara。当初只靠 Cascade 运作，但随着开发推进，"只有 Niagara 才能表现"的东西增多，导入随之深入。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"开发途中才导入"符合 UE4 时代 Cascade→Niagara 的普遍节奏：4.22 前后 Niagara 的生产可用度不足，多数团队起步仍靠 Cascade。本作中途切换的动因是"只有 Niagara 才能表现的东西增多"——应指 GPU 模拟、模拟阶段、渲染器多样性（ribbon/mesh）、模块可编程性这些 Cascade 结构性给不了的能力。</p>
+<p class="ex-sub">【取舍】双系统并存是迁移期的税：两套资产、两套工作流、两套性能特征。讲演未提是否回收旧资产——白无垢的冰锥仍是 Cascade，说明存量未清，也说明 FO 封装的另一层价值：调用方不关心底下是哪代系统。</p>
+<p class="ex-sub">【现代对照】UE5 已移除 Cascade，迁移成为历史命题；Niagara Sims（UE5.5）把"自写模块"的门槛降到美术可写，本作当年的模块缺口现在大多有官方件。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">Niagaraの事例として、メッシュ参照モジュールが紹介されました。メッシュの表面からランダムで位置を取得し、パーティクルとして霧散する敵の死亡演出などに用いられています。通常機能から必要最小限の要素だけを残して軽量化されており、位置、回転、スケールのオフセット設定にも対応しています。</div></details>
+<div class="zh"><p>作为 Niagara 的案例，介绍了网格体参照模块。它从 mesh 表面随机取得位置，用于敌人雾散般消散的死亡演出等。该模块从通常功能中只保留必要最小限的要素实现了轻量化，还支持位置、旋转、缩放的偏移设置。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】网格体参照模块即后来官方化的 Sample Static Mesh 一类功能：在发射器生成阶段从 mesh 表面随机采样位置（按三角面面积加权才能均匀——这是自写模块相对早期官方简化版的常见增强），粒子从身体表面出生，做死亡时"化雾散去"的演出。"只留必要最小限要素轻量化"指砍掉法线/颜色/速度等采样通道只保留位置，另加位置/旋转/缩放偏移。</p>
+<p class="ex-sub">【设计动机】死亡雾散需要粒子看起来"从身体各处长出来"，而不是从包围盒随机点冒出——表面采样给出正确的几何分布。"轻量化"对应生成阶段的指令成本：每粒子一次 mesh 采样不便宜，砍通道省的是带宽与寄存器。</p>
+<p class="ex-sub">【取舍】裁剪版模块是典型的"为用量牺牲通用性"：本作死亡演出遍地都是，这个模块每秒执行成千上万次，值得专门瘦身；代价是模块偏离官方版后，引擎升级与人员交接的成本上升。</p>
+<p class="ex-sub">【现代对照】UE5 官方 Niagara 的 Mesh Sampling 模块已含面积加权与多通道；Niagara Sims 与 ML Deformer 则把"死亡溶解"的表现上限继续推高。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、スプライン参照モジュール機能を利用した霊を吸収するアニメーションも紹介されました。</div></details>
+<div class="zh"><p>此外还介绍了利用样条线（spline）参照模块功能的吸收灵体动画。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】样条线参照模块让粒子沿外部样条运动：玩法侧生成吸收路径（从尸体/场景到玩家），样条喂给 Niagara，粒子按样条参数化位置前进并叠加噪声扰动——灵体被吸入的流动轨迹既有曲线感又受玩法端点控制。</p>
+<p class="ex-sub">【设计动机】吸收演出是高频反复播放的核心反馈，纯直线太廉价、纯物理不可控；样条插值给美术可控的曲线美，玩法只负责端点，分工干净——这与 FO"接口窄、内容厚"的思路完全一致。</p>
+<p class="ex-sub">【取舍】样条数据每帧从 CPU 推给 GPU 粒子有上传成本，高频播放时需合批；样条弯折过急时粒子沿参数（而非弧长）分布会疏密不均。</p>
+<p class="ex-sub">【现代对照】UE5 Niagara 官方样条模块与样条渲染器直接覆盖此需求，不必再自写。</p></div>
+</article>
+</section>
+<section class="chapter" id="global-title">
+<header class="ch-head"><span class="ch-en">Global-Title Considerations</span><h2>全球化作品独有的考量</h2></header>
+<div class="sec-h"><h3>全球化作品独有的考量</h3><span class="sec-h-en">グローバルタイトルならではの配慮</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节从渲染技术转向无障碍：面向全球发行的作品必须处理光敏性癫痫风险，而这些问题多在 QA 期才暴露，对策集中于开发后半。三个案例（招牌明灭、坠楼闪窗、货币特效）全部在材质侧、借 MPC 广播数据完成，零专属系统——与前文 MPC/材质架构形成闭环：前面搭的广播通道，在这里变成了无障碍工程的免费地基。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作は世界中のプレイヤーに遊んでもらうことを目的としているため、一部のプレイヤーが遊びにくくなってしまう表現については対策が必要でした。これらは開発中ではなく、QA中に発覚するものが多く、対策は開発後半に集中しました。</div></details>
+<div class="zh"><p>本作以让全世界玩家游玩为目标，因此对让一部分玩家难以游玩的表现必须采取对策。这些问题多不在开发中、而是在 QA 中被发现，对策集中在开发后半。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制·流程】光敏问题 QA 才发现、对策压到后半，是行业通病：开发期没有系统化的闪烁审计流程，只有等完整内容可玩、在真实画质与帧率下跑 QA（或平台认证要求）时才暴露——闪烁风险依赖"最终呈现的时间积分效果"，开发中的逐演出评审天然看不见。</p>
+<p class="ex-sub">【取舍】后期对策的可行半径有限：能改参数/材质，不能改设计。所以本作所有对策都是"衰减闪烁"而非"重新设计演出"，这是后期无障碍工作的普遍形态，也解释了为何对策全部落在材质侧。</p>
+<p class="ex-sub">【设计动机】全球化发行把合规半径拉大：各地区认证（微软/索尼的无障碍要求）与通用指南对闪烁都有量化红线。</p>
+<p class="ex-sub">【现代对照】正规做法是把问题左移：开发中期引入闪烁分析（Harding FPA 类工具、引擎内频闪检测）并按 Xbox 无障碍指南（XAG）评审；《最后生还者 第二章》之后，3A 已普遍把无障碍列入首日范围。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">具体的な例として、光過敏症の対策が紹介されました。例えば、敵が接近する際の予兆演出における過剰な明滅の対策として、カメラが近づいたときに電光の看板が画面いっぱいに広がりそうになったときは点滅する回数を減らし、最後には点滅しなくなるといった設定を行っています。これらの処理はマテリアル内で完結しているため、負荷などもありません。</div></details>
+<div class="zh"><p>作为具体例子，介绍了光敏性癫痫（光敏感症）的对策。例如，针对敌人接近时的前兆演出中过度的明灭，当相机靠近、电光招牌快要铺满画面时，会进行减少闪烁次数、最终不再闪烁的设置。这些处理在材质内完结，因此也没有负载。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】对策逻辑全在材质内：着色器拿相机距离/屏幕占比（由相机位置或 SvPosition 推得），招牌将满屏时降低闪烁频率直至停止——即"刺激强度（占屏面积×亮度×频率）"超阈值时自动降级，恰好对准光敏指南的三要素：每秒闪次、占屏比、明暗对比。WCAG 2.3.1 与 ITU-R BT.1702 的红线大致是通用闪烁每秒不超过三次。</p>
+<p class="ex-sub">【设计动机】"材质内完结故无负载"：只是逐像素的几个数学运算，无状态、无 CPU 通信、无分支陡增——用可忽略的成本拿到全覆盖，这是把无障碍做进渲染原语而非脚本层的典范。</p>
+<p class="ex-sub">【取舍】自动降级牺牲了近景演出的表现力（电光招牌的脉冲感是怪异氛围的组成部分），换来零特判、零维护——规则写一次，所有招牌材质通用。</p>
+<p class="ex-sub">【局限】阈值若硬编码在材质里，则无法按用户的无障碍设置分级；讲演未提用户侧开关。</p>
+<p class="ex-sub">【现代对照】现代引擎已有光敏分析工具链（引擎内闪烁检测、认证前自动扫描），索尼/微软第一方流程均含此项。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">続いて、ビルから落下した時の対策も紹介。ビルの壁面すれすれで落下すると、落ちる速度に合わせて暗闇の中で光る窓が高速で表示されてしまうため、画面としては強く点滅して見えてしまう問題がありました。そこで、窓のマテリアル側でMPCに書かれたプレイヤーの落下速度を取得し、カメラとの距離に応じて窓を暗くする処理を入れています。</div></details>
+<div class="zh"><p>接着介绍了从大楼坠落时的对策。贴着大楼墙面下落时，黑暗中发光的窗户会随下落速度高速显示，画面上看起来会像强烈闪烁，存在这样的问题。对此，在窗户材质侧取得写入 MPC 的玩家下落速度，加入按与相机的距离调暗窗户的处理。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】问题的物理本质是时间混叠：玩家沿墙面高速下落，视野被窗户的明暗空间周期采样，空间频率×下落速度=时间频率，超过闪烁阈值即在视网膜上等效为频闪——与车轮效应同源，是"空间周期图案+高速相机运动"的采样问题，运动模糊救不了（UE4 运动模糊对半透明窗光覆盖弱，且不改变明暗对比本身）。对策把速度信号广播（玩家下落速度写入 MPC）交给窗户材质，按"速度×相机距离"压暗窗光——直接砍对比度，对光敏三要素中的"对比"维度釜底抽薪。</p>
+<p class="ex-sub">【设计动机】为什么在材质做而不用全局后处理：调暗要只作用于"快速掠过的窗"，而"哪些建筑在坠线路径上、多近"只有像素级的相机距离/速度信息最准；材质侧逐像素判断天然精确，且复用已有的 MPC 速度参数，零新增系统——MPC 广播通道第二次成了问题求解的地基。</p>
+<p class="ex-sub">【取舍】压暗只在高速下落时触发，正常游玩的天际线夜景不受影响——"异常状态局部降级"而非全局画质妥协，设计上相当克制。副作用是极端速降时城市变暗可能被察觉，阈值曲线要做软过渡。</p>
+<p class="ex-sub">【现代对照】时序渲染时代此类问题更受关注：TSR/时序 AA 对高频闪烁内容的伪影（相位闪烁）同样敏感，现代做法除亮度衰减外还有帧间阻尼（在着色器时间函数层面限制闪烁频率）；《漫威蜘蛛侠 2》高速摆荡中的窗光处理属同族问题。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">貨幣アイテムを入手した際のエフェクトにおいても、光過敏症対策が施されている。カメラの距離によっては取得した瞬間の発光エフェクトが交互に表示されてしまうため、発光エフェクトがカメラの近くで消えるように対処した</div></details>
+<div class="zh"><p>获得货币道具时的特效也做了光敏性癫痫对策。在某些相机距离下，获得瞬间的发光特效会交替显示，因此让发光特效在相机近处消失来解决。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】货币拾取特效的风险来自"交替显示"：拾取瞬间的强发光与场景亮度在特定相机距离下交替，构成近似全屏的明暗切换；对策让发光特效在相机近处提前消隐——同样是"占屏比×对比"超阈值即降级的规则。</p>
+<p class="ex-sub">【取舍】特效提前消失意味着玩家近距拾取时"捡到钱"的视觉反馈变弱，需靠音效/数字弹跳补足反馈链——无障碍对策常有的"表现力让位"，把信息分流给其他感官通道是最标准的补偿。</p>
+<p class="ex-sub">【设计动机】货币是全游戏成千上万次的高频交互，哪怕小概率不适也会在长会话中累积成真实伤害源——高频内容的衰减阈值必须比低频演出更保守，这是本案例与前两案的本质差别。</p>
+<p class="ex-sub">【现代对照】高频 UI/拾取反馈的光敏审计已是现代无障碍清单的标准项（微软 XAG 对"重复性视觉刺激"有专条）。</p></div>
+</article>
+</section>
+<section class="chapter" id="video-hdr">
+<header class="ch-head"><span class="ch-en">Video Playback &amp; HDR</span><h2>视频表现与 HDR 对应</h2></header>
+<div class="sec-h"><h3>视频表现与 HDR 对应</h3><span class="sec-h-en">動画表現とHDR対応</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>收尾小节离开实时渲染，讲视频播放与 HDR：PC 版 DX12 专属带来的解码器困境（WebM/VP9+WmfMedia）、MediaPlayer 音画同步的对症疗法、以及公司首个 HDR 作品"最低限度对应"的保守方针（素材停留 Rec.709、HDR 专用调色）。技术选型处处是 UE4 时代的限制与务实妥协，也是全文最能看出"引擎功能空窗期"如何逼出自研决策的段落。</p></div>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">本作のPC版（Windows環境）はDirectX 12専用であることから、WebM/VP9を採用しています。開発当時、DirectX 12ではUE4のMediaPlayerがハードウェアデコードできず（現在はmp4のみElectraでデコード可能）、処理負荷を加味してこの仕様になったとのこと。デコードはWmfMediaで行っています。また、動画に音声トラックは含まれておらず、サウンドオーサリングツールであるWwiseを同期させて再生させる仕組みを採用しています。</div></details>
+<div class="zh"><p>本作 PC 版（Windows 环境）为 DirectX 12 专用，因此采用 WebM/VP9。开发当时，DirectX 12 下 UE4 的 MediaPlayer 无法硬件解码（现在仅 mp4 可由 Electra 解码），综合考虑处理负载后定为此规格。解码由 WmfMedia 进行。另外，视频中不含音轨，采用与音频制作工具 Wwise 同步播放的机制。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】解码选型链：PC 版只上 DX12→当时（4.27 时代）UE4 的 MediaPlayer 在 DX12 下无硬件解码路径（平台媒体层 Electra 当时尚未覆盖 PC 的 mp4 硬解——讲演自注"现在仅 mp4 可由 Electra 解码"）→比较负载后选 WebM/VP9，解码落给 WmfMedia 插件（Windows Media Foundation 封装）。音频不入视频轨，由 Wwise 独立播放并同步——把响度、闪避、本地化语音全部留在音频中间件的可控域内。</p>
+<p class="ex-sub">【取舍】VP9 当时在多数消费 GPU 上并无广泛固定功能硬解，WmfMedia 走 MF 管线的 CPU/混合解码成本可预期但不便宜——"综合考虑负载后"的措辞说明这是当时可选项里的最小坏，而非最优解。视频无音轨的架构收益大于成本：音画同步责任全在 Wwise（时间轴对齐、seek 一致性），且换语言版本不需要重编视频资产；代价是同步没有引擎免费午餐，于是有了下一段 MediaPlayer 的拉扯。</p>
+<p class="ex-sub">【局限】这是典型的"引擎媒体框架在新图形 API 后端上的功能空窗期"决策：媒体播放器高度依赖平台解码器，图形 API 迁移期最先碎的就是这类软硬结合部。</p>
+<p class="ex-sub">【现代对照】UE5 的 Electra 播放器统一了 PC/主机解码路线（含硬解），这类选型困境已被官方收走；业界同期普遍选 Bink（自解码、平台无关）回避引擎媒体层，Bink 至今仍是许多作品的避险选项。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">UE4のMediaPlayerは、特に低スペックマシンにおいて音声同期を行うことが困難だったそうです。Prepare完了後にPlayの処理を行っても、実際に動画が再生されるまでにラグが起きてしまい、音声や字幕にズレが生じていました。これに対しては、ポーズ中やズレが大きくなったときに音や字幕のシークを再度行うなどの対症療法的な対策が取られました。</div></details>
+<div class="zh"><p>据称 UE4 的 MediaPlayer 特别是在低配机器上难以进行音频同步。即使 Prepare 完成后再执行 Play 处理，到视频实际开始播放也会产生延迟，出现声音和字幕的错位。对此，采取了"暂停时、错位变大时对声音和字幕重新 seek"等对症疗法式的对策。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】MediaPlayer 的 Prepare→Play 之间有完成度间隙：Prepare 返回后流/解码器未必真正就绪，Play 发出后首帧出图有延迟；音频（Wwise）按理想时间起跑，于是音画/字幕错位——低配机解码起跑更慢，错位更明显。</p>
+<p class="ex-sub">【取舍】对症疗法的本质：不修引擎，在应用层观察错位（时间戳对比）、超阈值就对音频/字幕重新 seek 校时——把同步做成反馈控制回路，而非开环信任引擎状态。暂停恢复同理：暂停破坏双方时钟进度，恢复时以视频为准重新对齐。这类补丁的代价是 seek 抖动本身可闻/可见，阈值必须设在"错位可感"与"校正可感"之间——工程上很脆，但交付上有效。</p>
+<p class="ex-sub">【局限】根因（Prepare 语义与解码器就绪状态脱节）在引擎侧，应用层永远只能追认；每加一种语言/字幕轨，校正路径就多一条。</p>
+<p class="ex-sub">【现代对照】Electra/UE5 的媒体框架把 A/V 同步做进播放器内部（以主时钟为基准），应用层不再手工校时；Wwise 自身的视频集成/外部分源同步是官方化同型方案。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">また、本作は同社初のHDR対応タイトルとなり、現時点でノウハウが溜まっているわけではないため最低限の対応にとどめる方針を定めました。テクスチャなどの素材はRec. 2020ではなくsRGB/Rec.709のまま制作を進めています。</div></details>
+<div class="zh"><p>此外，本作是 Tango 首个 HDR 对应作品，当下并没有积累起 know-how，因此定下了"只做最低限度对应"的方针。贴图等素材不按 Rec. 2020、而按 sRGB/Rec.709 继续制作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】"最低限度"方针的实质：素材管线不动（继续 sRGB/Rec.709），仅输出链支持 HDR——Rec.2020 容器里装 709 色域的内容，HDR 收益主要来自亮度域（高光 nits）而非色域扩展。这在技术上完全合法：HDR10 信号只是容器与传递函数（PQ），内容色域可宽可窄，709 内容在 2020 容器中显示无非饱和度上限不扩展。</p>
+<p class="ex-sub">【设计动机】Rec.2020 素材化意味着整条美术管线重造：监视器、校色流程、贴图导出、审看环境全部换血，而 HDR 用户占比与收益未经验证——首个 HDR 作品选"不动资产、只动输出"把风险压到最小，是缺乏 know-how 时理性的保守路线（据讲演，公司首作）。</p>
+<p class="ex-sub">【取舍】代价明确：HDR 模式下画面色域与 SDR 母版相同，"HDR 感"主要靠高光亮度（招牌霓虹、阳光）撑起；同时存在"SDR 母版直扩 HDR 会发灰/过曝"的通病——于是有了后文"HDR 专用调色后处理"来救。最低限度方针省下的管线成本，一部分以双调色的人力归还。</p>
+<p class="ex-sub">【局限】讲演坦承 know-how 未积累，这份坦诚本身有价值：UE4 时代引擎只给了 HDR 输出开关，色彩管理（OCIO）与 HDR 审看工具链都还不健全。</p>
+<p class="ex-sub">【现代对照】UE5 已有 OCIO 集成与完整色彩管理，业界沉淀出"709 制作+HDR 展开"与"全 2020 母版+SDR 下变换"两条路线；讲演结尾"下次想做 Rec.2020 素材与 HDR→SDR 变换"正是向第二条路线演进的预告。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">UE4自体がHDRに対応しているため、HDRを有効にすることは簡単でしたが、ここでも複数のマテリアルで極端な色味が出てしまったり、UIのトーンがおかしくなるなどの問題が発生したとのこと。この対処として、たとえば道路標識などのRGB値を（1,0,0）という極端かつシンプルな値で設定していたものを、アーティスト側がカラーチャートや計測した値に再設定。さらに、色確認用のチェッカーを作成したとのことです。</div></details>
+<div class="zh"><p>由于 UE4 本身支持 HDR，开启 HDR 很简单，但这里也发生了多个材质出现极端色调、UI 色调变得奇怪等问题。作为对策，例如把道路标识等以 (1,0,0) 这种极端而简单的 RGB 值设定的部分，由美术师按色卡与实测值重新设定，并制作了颜色确认用的检查器。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】SDR 时代 (1,0,0) 这种"教学值"被 tone map 与约 100 nits 亮度上限无害化；HDR 输出直通亮度后，纯红满值会以数千 nits 的极端饱和色砸出来——这就是"多个材质出现极端色调"的机理。UI 变怪同理：按 SDR 亮度设计的 UI 白色/描边在 HDR 下过亮或发灰。对策分两层：美术按色卡与实测值重设基础色（把教学值换成物理合理值），并制作颜色检查器（关卡内标准色卡/对比工具）固化检查流程。</p>
+<p class="ex-sub">【设计动机】问题根源是资产里沉淀了大量"SDR 时代无害、HDR 时代有害"的隐含约定；色卡与检查器是把约定显性化、流程化的最低成本手段——不动管线、先立标尺。</p>
+<p class="ex-sub">【取舍】逐资产手工复查在大城市体量下并不彻底，讲演未提供自动化扫描的说明，推测检查器以人工对照为主——覆盖度依赖自觉。</p>
+<p class="ex-sub">【现代对照】现代管线用 OCIO+HDR 审看监视器+自动资产校验（引擎侧 Color Checker/验证工具）系统化解决；主机平台的 HDR 认证清单也要求提交实测数据。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">動画データは全てSDR。HDR有効時にはレンダリング時に変換している</div></details>
+<div class="zh"><p>视频数据全部为 SDR。开启 HDR 时在渲染时进行转换。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】视频全 SDR、HDR 时渲染期转换：播放器输出 SDR 帧，合成时经扩展（亮度映射/反向 tone map）进 HDR 交换链——省去视频资产的双版本。转换是粗粒度的（SDR 全档拉进 HDR 亮度域），色域与高光细节无从恢复，但过场视频本就不承担高光表现。</p>
+<p class="ex-sub">【取舍】比双版本资产省一倍存储与本地化管理成本，比"SDR 直通显示"观感好（至少亮度域与游戏画面一致，不会过场突然变暗）。</p>
+<p class="ex-sub">【局限】扩展曲线的质量决定观感，通用逆映射易过曝或发灰——讲演未提曲线细节，推测是简单的亮度缩放/gamma 调整（据讲演仅言"渲染时转换"）。</p>
+<p class="ex-sub">【现代对照】UE5/Electra 支持 HDR 视频直出（PQ/HLG 资产），过场 HDR 母版已是当代大作标配。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">最後に、HDRとグレーディングについて解説もされました。単純にHDRを有効にしただけではアーティストが求めるビジュアルのクオリティに達していないことから、本作ではHDR有効時にのみ適応されるグレーディング用ポストプロセスを用意しています。</div></details>
+<div class="zh"><p>最后还解说了 HDR 与调色（grading）。仅仅开启 HDR 达不到美术师要求的视觉品质，因此本作准备了仅在开启 HDR 时才适用的调色用后处理。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】HDR 专用调色后处理：同一画面，SDR 走既有 LUT/调色，HDR 分支套用另一套仅 HDR 激活的调色 pass（曝光、饱和、高光滚降的 HDR 专用曲线）——本质是"双母版"：承认 HDR 不是 SDR 调色的无损超集，同一组颜色数据在两种输出介质上需要不同的整形。</p>
+<p class="ex-sub">【设计动机】"只开 HDR 达不到美术要求"的原因很物理：SDR 调色决策（高光压暗、对比整形）是在约 100 nits 假设下做的，放进 HDR 亮度域后画面发灰或刺眼；美术要的是"HDR 的光照感"，必须按 HDR 观感重新整形高光与中间调。做成分开的 pass 而非改 LUT，说明整形维度超出颜色查找表能力（亮度域映射、逐通道滚降）。</p>
+<p class="ex-sub">【取舍】双调色=双份美术审校成本，且两版需保证创意意图一致（HDR 不是"更亮"，而是"同一意图的另一种实现"）；维护两条 look 管线直到发售，是"最低限度 HDR"方针里隐藏的最大人力成本，讲演用一句"更高品质"带过。未提及自动对齐工具（以 SDR 为锚的 HDR 匹配），全靠美术手工，规模一大一致性就难保证。</p>
+<p class="ex-sub">【现代对照】当代引擎已把 SDR/HDR 双输出调色原生化：UE5 的色彩管理/OCIO 支持按输出配 look，主机平台要求提交时同时审 SDR 与 HDR 母版；影视界 Dolby PQ 母版派生 SDR 是同一问题的先行解。</p></div>
+</article>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">こうした対応によって、ノウハウが足りない中でも単純なHDR有効化よりも高いクオリティを出すことができたとのこと。また、次回の開発からはRec.2020を利用した素材作りや、HDRからSDRの変換なども挑戦したいと語られました。</div></details>
+<div class="zh"><p>据称通过这些应对，在 know-how 不足的情况下仍做出了比单纯开启 HDR 更高的品质。另外还表示，从下次开发起想挑战使用 Rec.2020 的素材制作、以及从 HDR 到 SDR 的转换等。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】总结这段方针的收效与下一步：双调色让 know-how 不足的团队仍交出了合格 HDR；下一步（Rec.2020 素材、HDR→SDR 下变换）是转向"HDR 母版工作流"——以 HDR 为源头、SDR 为派生，与影视界 ACES/PQ 母版派生 SDR 的路线同构。</p>
+<p class="ex-sub">【取舍】下变换的质量决定 SDR 观众（仍是多数）的体验，HDR→SDR 的 tone map 曲线是路线切换后最难调的一环；"想挑战"的措辞说明当时尚未评估成本——从方针到落地还隔着一整条管线的重建。</p>
+<p class="ex-sub">【现代对照】UE5 的 OCIO/色彩管理与《漫威蜘蛛侠 2》《赛博朋克 2077》等的 HDR 优先管线已验证此路线可行；Tango 的下一部作品恰逢引擎能力补齐期，讲演里的愿望很快成了行业默认。</p></div>
+</article>
+</section>
+<section class="chapter" id="closing">
+<header class="ch-head"><span class="ch-en">Closing</span><h2>结语</h2></header>
+<article class="para">
+<details class="orig"><summary>英文原文</summary><div class="orig-body">講演のまとめとして、『Ghostwire: Tokyo™』はUE4末期のタイトルとして、技術的に可能な要素を入れられるだけ詰め込んだものになったと奥川氏は語ります。今後は本作開発の経験をもとに、新たな開発環境であるUE5の検証なども行っていく考えとのことです。</div></details>
+<div class="zh"><p>作为讲演总结，奥川表示《Ghostwire: Tokyo™》作为 UE4 末期的作品，成了把技术上可行的要素尽量塞满的一部作品。今后将基于本作的开发经验，对新的开发环境 UE5 展开验证等工作。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】收束全讲演：定位是"UE4 末期技术的集大成"——4.26/4.27 前后，UE4 的 GPU 驱动管线、World Composition、Niagara、VAT、RVT 皆可用，本作把当世代可行的技术尽量塞满：前半的城市复刻与流送、后半的 FO/VAT/雾/MPC/HDR 全是这一注脚。</p>
+<p class="ex-sub">【取舍·评述】讲演全程对阴影与全局光照几乎未展开——UE4 时代 SSGI/RTGI 的成本与质量两难，推测本作在这两项上偏保守使用，这恰好是讲演信息版图上最大的留白。对 FO、雾管理器、VAT 管线等自研层的长期维护成本也基本未谈："塞满可行技术"的另一面，是大量非引擎原语的自研层要长期供养——每支在引擎版本交界期立项的团队都要重付这笔学费。</p>
+<p class="ex-sub">【现代对照】UE5 世代的 World Partition/HLOD、Nanite、Lumen、TSR、Virtual Shadow Maps 恰好逐项回应本作痛点（分区流送、物量、GI/阴影）；The Matrix Awakens 的 City Sample 与后续开放世界作品把"城市+雾+物量"的原生工具链补齐。Tango 转 UE5 的验证方向，与整个行业同频。</p></div>
+</article>
+</section>
+  </main>
+</div>
+
+<footer class="foot">
+  <a href="index.html">← 返回收录书架</a> · 收录精读系列 · 译文与解析仅供学习交流 · 原文版权归原作者所有
+</footer>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  var topBtn = document.getElementById('top-btn');
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement;
+    var p = h.scrollTop / (h.scrollHeight - h.clientHeight || 1);
+    bar.style.width = (p * 100).toFixed(2) + '%';
+    topBtn.classList.toggle('on', h.scrollTop > 600);
+  }, {passive:true});
+  topBtn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  // 目录高亮
+  var items = Array.prototype.slice.call(document.querySelectorAll('.toc-item'));
+  var secs = items.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  function spy(){
+    var y = window.scrollY + 140, idx = 0;
+    for (var i = 0; i < secs.length; i++){ if (secs[i] && secs[i].offsetTop <= y) idx = i; }
+    items.forEach(function(a, i){ a.classList.toggle('now', i === idx); });
+  }
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+
+</script>
+</body>
+</html>

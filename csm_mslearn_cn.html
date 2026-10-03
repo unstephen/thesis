@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>级联阴影贴图（CSM）原理与实践</title>
+<style>
+:root{
+  --ink:#1c2126; --ink2:#4a525a; --paper:#fbfaf7; --card:#ffffff;
+  --accent:#0e6f63; --accent-soft:#eef6f4; --accent-line:#cfe4e0;
+  --amber:#8a6d1f; --amber-soft:#faf6ea;
+  --line:#e5e1d8; --code-bg:#f4f2ec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",-apple-system,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:99;transition:width .1s}
+.back-shelf{position:fixed;top:12px;left:14px;z-index:97;background:var(--card);color:var(--accent);
+  border:1px solid var(--line);border-radius:99px;padding:5px 14px;font-size:13px;text-decoration:none;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);opacity:.92}
+.back-shelf:hover{opacity:1;background:var(--accent-soft)}
+@media print{.back-shelf{display:none}}
+#top-btn{position:fixed;right:22px;bottom:26px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+  background:var(--card);color:var(--accent);font-size:18px;cursor:pointer;opacity:0;pointer-events:none;transition:.25s;z-index:98;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#top-btn.on{opacity:1;pointer-events:auto}
+
+/* ---------- 封面 ---------- */
+.cover{background:linear-gradient(160deg,#0d3b36 0%,#0e6f63 55%,#16917f 100%);color:#fff;padding:72px 24px 60px}
+.cover-inner{max-width:880px;margin:0 auto}
+.cover-kicker{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.85;margin-bottom:14px}
+.cover h1{font-size:52px;margin:0 0 6px;font-weight:800;letter-spacing:.04em}
+.cover-sub{font-size:20px;opacity:.92;font-weight:300;margin-bottom:22px}
+.cover-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:99px;
+  padding:4px 14px;font-size:13px}
+.cover-note{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:12px;
+  padding:18px 22px;font-size:15px;line-height:1.9}
+.cover-note a{color:#ffe9a8}
+.tiny{font-size:12.5px;opacity:.8}
+
+/* ---------- 布局 ---------- */
+.layout{max-width:1240px;margin:0 auto;padding:0 20px;display:flex;gap:34px;align-items:flex-start}
+#toc{position:sticky;top:0;width:250px;flex:0 0 250px;max-height:100vh;overflow-y:auto;padding:34px 0 40px;
+  font-size:14px;border-right:1px solid var(--line)}
+.toc-head{font-weight:700;color:var(--ink2);letter-spacing:.2em;font-size:12px;margin-bottom:12px}
+.toc-item{display:block;color:var(--ink2);text-decoration:none;padding:6px 12px;border-radius:8px;line-height:1.5;
+  border-left:2px solid transparent}
+.toc-item:hover{background:var(--accent-soft);color:var(--accent)}
+.toc-item.now{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+#content{flex:1;min-width:0;padding:30px 0 60px;max-width:860px}
+
+/* ---------- 章节 ---------- */
+.chapter{margin-bottom:70px}
+.ch-head{border-bottom:2px solid var(--accent);padding-bottom:10px;margin:26px 0 8px}
+.ch-en{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.ch-head h2{margin:2px 0 0;font-size:30px;font-weight:800}
+
+.sec-h{margin:38px 0 4px;padding-left:12px;border-left:4px solid var(--accent)}
+.sec-h h3{margin:0;font-size:21px}
+.sec-h-en{font-size:12.5px;color:var(--ink2);opacity:.75}
+
+/* ---------- 段落卡 ---------- */
+.para{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 26px 18px;margin:20px 0;
+  box-shadow:0 1px 3px rgba(30,30,30,.04)}
+.zh{font-size:17px;line-height:2.05;color:var(--ink)}
+.zh p{margin:10px 0}
+.zh ul,.zh ol{margin:8px 0 8px 4px;padding-left:22px}
+.zh li{margin:5px 0}
+.ex-sub{margin:14px 0 4px!important;font-weight:700;color:var(--accent)}
+.orig{margin:0 0 12px;border:1px dashed var(--line);border-radius:10px;background:#fcfbf8}
+.orig summary{cursor:pointer;padding:7px 14px;font-size:13px;color:var(--ink2);user-select:none}
+.orig summary:hover{color:var(--accent)}
+.orig-body{padding:4px 16px 14px;font-size:14px;line-height:1.85;color:#5a626a;
+  font-family:Georgia,"Times New Roman",serif}
+.ex-card{margin-top:16px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;
+  padding:14px 20px 12px;font-size:15.2px;line-height:1.95;color:#22333a}
+.ex-title{font-weight:800;color:var(--accent);font-size:14px;letter-spacing:.08em;margin-bottom:6px}
+.ex-card p{margin:8px 0}
+.ex-card ul,.ex-card ol{margin:6px 0 6px 2px;padding-left:20px}
+.ex-card li{margin:4px 0}
+.formula{font-family:"Cambria Math",Georgia,serif;text-align:center;background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;margin:10px auto;font-size:16px;overflow-x:auto}
+
+/* ---------- 插图 ---------- */
+.fig-plate{margin:26px 0;text-align:center}
+.fig-plate img{max-width:100%;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.07)}
+.fig-plate figcaption{font-size:13px;color:var(--ink2);margin-top:8px}
+
+/* ---------- 参考文献 ---------- */
+.ref-list{padding-left:0;list-style:none;counter-reset:ref}
+.ref{counter-increment:ref;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 20px;margin:12px 0}
+.ref-txt{font-family:Georgia,serif;font-size:14.5px;color:#3c444c}
+.ref-txt::before{content:counter(ref)" · ";font-weight:800;color:var(--accent)}
+.ref-cmt{margin-top:8px;font-size:14.6px;color:var(--ink);background:var(--amber-soft);border-left:3px solid #d9c98a;
+  padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.9}
+
+.foot{text-align:center;color:var(--ink2);font-size:13px;padding:26px 16px 40px;border-top:1px solid var(--line);margin-top:30px}
+a{color:var(--accent)}
+code{background:var(--code-bg);border-radius:5px;padding:1px 6px;font-size:.92em;
+  font-family:Consolas,"Courier New",monospace}
+
+@media (max-width:1080px){
+  #toc{display:none}
+  .layout{display:block}
+  .cover h1{font-size:38px}
+}
+
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<a class="back-shelf" href="index.html" title="返回收录书架">← 收录书架</a>
+<button id="top-btn" title="回到顶部">↑</button>
+
+<header class="cover">
+  <div class="cover-inner">
+    <div class="cover-kicker">Microsoft Learn · DirectX 技术文章</div>
+    <h1>级联阴影贴图（CSM）原理与实践</h1>
+    <div class="cover-sub">Cascaded Shadow Maps · 中文原文精读</div>
+    <div class="cover-meta"><span class="chip">Microsoft DirectX 团队</span><span class="chip">经典教材</span><span class="chip">官方技术文章</span></div>
+    <div class="cover-note">微软 DirectX 团队的 CSM 权威长文：透视锯齿从哪来、级联怎么分、边界怎么混、缓冲怎么打包——中文原文+逐段解析。适合当 CSM 的第一篇系统性读物，也是书架里 SDSM、BF3、Ryse 这些实战讲义的铺垫；解析里附了 2025 年视角的过时点标注。原文配图请点原文链接对照。</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="toc"><div class="toc-head">目录</div><a class="toc-item" href="#intro">引言：这篇文章是什么</a>
+<a class="toc-item" href="#csm-aliasing">级联阴影贴图与透视锯齿</a>
+<a class="toc-item" href="#partitioning">分割视锥</a>
+<a class="toc-item" href="#frustum-fitting">计算视锥包围体：两种贴合</a>
+<a class="toc-item" href="#render-shadow-map">渲染阴影贴图：缓冲打包</a>
+<a class="toc-item" href="#cascade-selection">渲染场景：级联选择与边界混合</a>
+<a class="toc-item" href="#filtering">滤波：PCF 与深度偏移</a>
+<a class="toc-item" href="#vsm">方差阴影贴图（VSM）</a>
+<a class="toc-item" href="#summary">总结</a>
+<a class="toc-item" href="#refs">引用（原文文献，已还原英文书目信息）</a></nav>
+  <main id="content">
+<section class="chapter" id="intro">
+<header class="ch-head"><span class="ch-en">Introduction</span><h2>引言：这篇文章是什么</h2></header>
+<article class="para">
+<div class="zh"><p>级联阴影映射（CSM）是对抗最普遍的错误之一的最佳方法：透视别名。 此技术文章假定读者熟悉阴影映射，可解决 CSM 的主题。 具体而言，它：</p>
+<ul><li>解释 CSM 的复杂性;</li><li>提供有关 CSM 算法可能变体的详细信息;</li><li>介绍两种最常见的筛选技术-百分比更接近筛选（PCF）和使用方差阴影映射进行筛选（VSM）：</li><li>标识并解决与向 CSM 添加筛选相关的一些常见陷阱;和</li><li>演示如何将 CSM 映射到 Direct3D 10 到 Direct3D 11 硬件。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这是什么】微软 DirectX 团队发表在 MSDN/Learn 上的经典技术长文《Cascaded Shadow Maps》，随 DirectX SDK 里的 CascadedShadowMaps11 与 VarianceShadows11 两个示例代码一起发布，写作年代是 Direct3D 10/11 交替期（约 2010–2011）。页面标注的最后更新 2025-03 只是文档维护，正文的技术视野停留在 SM4/SM5 时代——这恰恰是它的价值：这是一篇把 CSM 从论文变成工业标准的承上启下文献。</p>
+<p class="ex-sub">【先读我：机翻修复表】你读到的中文版是机器翻译，大量图形学术语被翻错了，先对照这张表再往下读：透视别名＝perspective aliasing，即透视锯齿；「项目」＝artifacts，伪影（「闪闪发光的项目」就是闪烁伪影 shimmering）；「浅空间/浅色空间/浅视图空间」＝light space，光空间；「子图形/子frusta/子校验和」＝sub-frusta，子视锥；「决斗福斯塔」＝dueling frusta，对撞视锥；「异性筛选」＝anisotropic filtering，各向异性过滤；「点击」＝tap，采样次数（四点击＝4-tap）；「双声道」＝two-channel，双通道；「浅出血/轻微出血」＝light bleeding，漏光；「彼得·潘宁」＝peter-panning，阴影脱离投射者的悬空；「作」＝操作；「屏障」＝阈值 threshold；「适合场景/适合级联」＝fit to scene / fit to cascade；「研讨会的诉讼」＝symposium proceedings，论文集。全文还有 阴影地图/阴影贴图、纹素/texel 混用，按 shadow map、texel 理解即可。</p>
+<p class="ex-sub">【本文五个承诺】①讲清 CSM 复杂度的来源；②给出变体的设计空间（分割策略、贴合方式、级联选择、缓冲打包）；③两种滤波：PCF 与 VSM；④滤波带来的陷阱（偏移、发散分支下的导数、内核越界）；⑤落到 D3D10→11 的硬件映射。原文 17 张配图未随文抓取，每个「图 N」标题块下我都写了解析说明它在原作中画的是什么，需要看图请打开原文（learn.microsoft.com/zh-cn/windows/win32/dxtecharts/cascaded-shadow-maps）对照。</p>
+<p class="ex-sub">【书架定位】用本站收藏串起来读：Williams 1978 阴影贴图开山（williams1978）→ PSSM 并行分割（GPU Gems 3，psss_gpugems3）→ 本文 CSM 工程化 → SDSM 自动拟合（sdsm2010）→ BF3/Ryse/FF16 的 3A 落地（bf3-rendering-2011、ryse-son-of-rome-2014、ff16-shadow-2023）→ UE5 虚拟阴影贴图（vsm_ue5_docs）与硬件 RT 阴影（codmw2020、leblanc-acshadows-rt-2025）。本文也是这些实战讲义的最好铺垫——它们都默认你已经懂本文的内容。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>本文中使用的代码可以在 CascadedShadowMaps11 和 VarianceShadows11 示例中的 DirectX 软件开发工具包（SDK）中找到。 本文将在实施技术文章中所述的技术后证明最有用，改进阴影深度地图的常见技术。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【姊妹篇关系】最后一句机翻乱了，原文意思是：本文最好与姊妹篇《改进阴影深度地图的常见技术》（Common Techniques to Improve Shadow Depth Maps）配合阅读，先把那篇里的基础改进落地——其中最关键的是以 texel 尺寸为增量移动光（texel 对齐）——再来实施 CSM。本文有两处回头引用那篇文章，因为 CSM 把视锥贴合做紧之后，贴合抖动问题反而被放大，必须靠 texel 对齐来救。</p>
+<p class="ex-sub">【两个示例各代表一条技术路线】CascadedShadowMaps11 走 PCF 路线（比较采样器+大内核循环），VarianceShadows11 走 VSM 路线（双通道矩+可分离模糊）。同一场景、两套滤波，正是本文用来论证滤波权衡的实验装置——文末 GUI 滑块（调混合带宽度、调 PCF 内核大小）都是为对比实验服务的，这个「可调参数看伪影」的学习方法本身值得偷师。</p>
+<p class="ex-sub">【现代读者的换算表】把文中 D3D10/11 术语换算到你熟悉的 DX12/Vulkan/UE5 世界：D3D10 不支持纹理数组上的比较采样 → 现代图形 API（DX12/Vulkan/Metal/GLES3）全部支持 Texture2DArray + 比较采样器，这是后文图集打包一节过时的根源；SampleCmpLevelZero ≈ Vulkan 的 textureLod(sampler2DArrayShadow) 或 GLSL 的 textureLod；SampleGrad ≈ 显式梯度采样；空像素着色器 ≈ depth-only pass（UE5 里 ShadowDepth 卡片上那个 Depth Only 勾选）。带着这张表读，2010 年的文章毫无隔阂感。</p></div>
+</article>
+</section>
+<section class="chapter" id="csm-aliasing">
+<header class="ch-head"><span class="ch-en">Cascaded Shadow Maps and Perspective Aliasing</span><h2>级联阴影贴图与透视锯齿</h2></header>
+<article class="para">
+<div class="zh"><p>阴影图中的透视别名是要克服的最困难问题之一。 在技术文章中，介绍了改进阴影深度地图的常见技术、透视别名以及一些缓解问题的方法。 在实践中，CSM 通常是最佳解决方案，通常用于现代游戏。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【锯齿家族的三个成员】阴影贴图（shadow map）的采样失真分三类：透视锯齿（perspective aliasing，屏幕像素与光空间 texel 的密度失配）、投影锯齿（projective aliasing，表面与光线方向近乎平行时，一个 texel 在表面上被拉成极长条）、以及时间性闪烁（光源/相机移动时前两者的动态表现）。本文只攻第一类——因为它最普遍、且随分辨率和视距恶化得最快。SDSM 讲义（书架 sdsm2010）开篇就是同样的三连诊断：浪费分辨率、近处透视锯齿、平行表面投影锯齿，两篇对读会发现本文的问题定义就是后来 SDSM 的出发点。</p>
+<p class="ex-sub">【为什么说「最困难」】透视锯齿不是精度 bug，而是采样结构性的失配：阴影贴图在光空间是均匀网格采样，而相机对世界的采样是透视分布（密度随 1/z 衰减）。两者数学形式根本不同，任何单一均匀贴图都无法同时匹配所有深度——这就是下一句 4096×4096 也不够的根源。</p>
+<p class="ex-sub">【「通常是最佳解决方案」的统计】在 2010 年这个论断基本成立：CSM 是质量/复杂度/稳定性三角的最佳折中，替代方案各有硬伤（LiSPSM 在对撞视锥下退化、PSSM 本质就是 CSM、透视阴影贴图 PSM 数值不稳、滤波级联 FCSM 引入漏光）。到今天，固定管线里它依然是默认答案，只是「最佳」的位置逐渐让给了 UE5 VSM 这类页式方案和混合 RT 阴影。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>CSM 的基本概念易于理解。 相机视线的不同区域需要具有不同分辨率的阴影映射。 距离眼睛最近的物体需要比更远的对象更高的分辨率。 事实上，当眼睛移动非常接近几何图形时，最接近眼睛的像素可能需要这么多分辨率，即使 4096 × 4096 阴影地图也不足。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【数学根源：需求分辨率正比于 far/near】把直觉算成数。设水平视场 90°、屏幕宽 1920 像素，深度 z 处一个屏幕像素对应的世界宽度约为 2·z·tan45°/1920 ≈ z/960（米）。要达到 1:1（一个阴影 texel 恰好覆盖一个屏幕像素），贴图分辨率必须满足 R ≈ 视锥总宽/texel 尺寸。若一张贴图要管 0.5m 到 1000m 的全部深度：贴图必须按最远端 2000m 宽度铺开，4096 个 texel 分给 2000m → 每 texel 0.5m；而 2m 近处一个屏幕像素只有 2/960 ≈ 2mm 宽——一个 texel 盖住 250 个像素，阴影边缘成 250 倍的马赛克块，还会随亚像素移动整块跳变（闪烁）。要提高单张贴图质量，分辨率必须 ∝ far/near × 屏幕像素数：1080p、1000m 视距下要 1:1 需要 100 万 texel 量级的宽度——没有任何硬件预算给得起。</p>
+<p class="ex-sub">【CSM 的解法不是提高分辨率，而是重分配】关键洞察：屏幕上真正需要 1:1 精度的深度带很窄（近处），远处完全可以容忍粗糙 texel。与其造一张天文数字的均匀贴图，不如把视锥沿深度切成几段，每段单独拟合一张小贴图——每段内部依旧均匀，段与段之间密度阶梯式变化。这就是「级联」的全部思想：用分段均匀逼近透视分布。4096×4096 不够的结论在 2010 年成立；2025 年 UE5 VSM 用 16K×16K 的虚拟分辨率按需分页，等于把「分段」细化到了「每屏幕像素附近一个 texel」的连续极限（见 vsm_ue5_docs 精读）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>CSM 的基本理念是将 frustum 分区为多个 frusta。 为每个子图形呈现阴影映射;然后，像素着色器从地图中采样最符合所需分辨率（图 2）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【一句话算法】把视锥（frustum）分割成多个子视锥（原文的「子图形」是 sub-frusta 的机翻错误），每个子视锥各自算一个正交投影、渲染一张阴影贴图；着色时像素按自己的深度挑一张密度合适的贴图采样。「最符合所需分辨率」＝挑 texel 世界尺寸与该像素屏幕足迹最匹配的那张。</p>
+<p class="ex-sub">【历史命名】同一个想法在文献里有两个名字：张、孙、梁的 PSSM（Parallel-Split Shadow Maps，GPU Gems 3 第十一章，书架 psss_gpugems3）叫并行分割，Engel 在 ShaderX5（2006，本文引用文献之一）叫级联。两边的差别只在工程细节（PSSM 给出了对数分割的完整推导，CSM 更偏实现指南），工业界最后记住了 CSM 这个名字。本文不给分割公式、只给定性指南，是它的一个明显知识缺口——数学请去 PSSM 那一章补。</p>
+<p class="ex-sub">【「为每个子视锥呈现」的成本】每级联一次深度 pass，意味着场景遮挡物（occluder）要画 N 遍：draw call 与顶点成本 ×N。这是 CSM 的原罪，后文打包一节会展开现代的摊薄手段（逐级联剔除、position-only 顶点、GPU-driven instancing、粗像素深度 pass）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 1. 阴影地图覆盖率</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 1 是一组网格示意：把相机视锥压到光空间平面上，不同分辨率的阴影贴图在同一个视锥上的 texel 覆盖网格并排对比——红色圆锥是视锥示意，网格密度即贴图分辨率。配图未随文抓取，看图请点原文链接。</p>
+<p class="ex-sub">【看图的钥匙】这组图要读出三件事：①网格越密（分辨率越高），视锥远端覆盖越窄；②对固定分辨率，视锥近端格子相对世界尺寸极小、远端格子巨大——同一张图内密度并不随深度变化，但世界空间里远端一个格子对应的面积被透视放大了；③质量上限由「视锥最窄处一个格子盖住多少屏幕像素」决定。图 1 是后面一切推导的直觉底座：CSM 做的事就是把这套均匀网格换成几套各自对准某个深度带的网格。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在图 1 中，质量从高到低显示（从左到右）。 一系列网格表示阴影贴图（红色反圆锥图）显示像素覆盖率如何受到不同的分辨率阴影映射的影响。 当视图空间中的像素以1：1的比例映射到阴影图中的纹素时，阴影将达到最高质量（水准相当于白色像素）。 当像素过多映射到同一阴影纹素时，透视别名以大块纹理映射（左图像）的形式出现。 当阴影映射太大时，它处于采样状态。 在这种情况下，跳过纹素，引入闪闪发光的项目，并影响性能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【1:1 是黄金比例】本段定义了全文的质量度量：屏幕像素与阴影 texel 的映射比。1:1（白色）＝最高质量；欠采样（多像素挤一个 texel）＝透视锯齿，表现为大块阴影；过采样（一个像素对应多个 texel，原文「阴影映射太大」指覆盖范围相对需求过大）＝浪费显存与带宽，而且动态场景里被跳过的 texel 会产生高光点闪烁（shimmering artifacts，原文的「闪闪发光的项目」）并拖慢渲染。注意质量曲线是双向惩罚的——这解释了为什么级联数量不是越多越好：级联越多，远端级联相对其覆盖深度带越接近过采样，白烧带宽。</p>
+<p class="ex-sub">【量纲】texel/像素 比是阴影系统的第一设计变量，现代引擎调试台（UE 的 Shadow Stats、各家引擎的 shadow texel density view mode）都在可视化它。UE5 VSM 的官方目标表述——为配合 Nanite 的资产密度显著提升阴影分辨率——本质就是把 1:1 目标从近处推向全场景。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 2. CSM 阴影质量</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 2 把图 1 里每张贴图质量最高的那一块切口并排展示：每张级联贴图在它负责的深度带内达到近似 1:1（白色），带外则是灰色（欠采样或过采样）。切片按深度排列，最靠前的对应最靠近眼睛的级联。</p>
+<p class="ex-sub">【为什么这张图是 CSM 的存在证明】单张贴图只有一个 1:1 带区，其余深度全是浪费或锯齿；级联化之后每一段深度都有自己的白色区。图 2 实际上给出了级联数量的选择准则：白色区能否铺满整个可视深度范围、灰色浪费带是否可接受。把它记成心理模型：CSM 质量曲线是分段 1:1 的阶梯，而 SDSM/UE5 VSM 做的是把阶梯的段数与位置自动化。配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 2 显示了图 1 中每个阴影图中质量最高的部分的切口。 最接近放置像素（顶点）的阴影地图最接近眼睛。 从技术上说，这些地图的大小相同，白色和灰色用于演示级联阴影地图的成功。 白色是理想的，因为它显示良好的覆盖范围 - 1：1 的眼距像素和阴影地图纹素的比例。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻纠偏】「最接近放置像素（顶点）的阴影地图最接近眼睛」原文意为：图 2 中排在最前（左端）的切片对应最靠近眼睛的级联；「大小相同」指这些级联贴图分辨率其实完全一样（例如都是 1024²），质量差异完全来自各自覆盖的世界范围不同——这是 CSM 最反直觉、也最优雅的一点：不加一行特殊代码，仅靠缩小覆盖范围就提升了有效分辨率。</p>
+<p class="ex-sub">【工程含义】各级联同尺寸是事实标准（图集打包与纹理数组都要求一致的 mip/尺寸），于是「级联的分割策略」＝「各级联覆盖的世界宽度的比例策略」。后文分区一节的所有讨论（对数、均匀、实用折中）都是在回答：这一组宽度怎么取，才能让每级联的 texel 尺寸恰好匹配它负责的深度带。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>CSM 要求每个帧执行以下步骤。</p>
+<ul><li>将 frustum 分区为子frusta。</li><li>为每个子图形计算一个正交投影。</li><li>呈现每个子图形的阴影映射。</li><li>呈现场景。</li><li>绑定阴影映射和呈现。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【流水线全景】五步：分割视锥 → 每级联算正交投影 → 渲染各级联阴影贴图（深度 pass）→ 渲染主场景 → 绑定贴图采样。前三步是 CPU/渲染设置（每帧常数级），第四五步是 GPU 主负载。2010 年的这条流水线骨架到今天没变，变的是每一步的实现密度：</p>
+<ul><li>第 1 步（分割）：从手工常数 → SDSM 用上一帧深度缓冲自动算 min/max 拟合（sdsm2010）。</li><li>第 2 步（投影）：加上 texel 对齐与旋转稳定（姊妹篇内容）。</li><li>第 3 步（深度 pass）：加上逐级联遮挡物剔除、position-only 顶点着色器；UE5 VSM 把它改造成页渲染（只渲染可见页，128×128 一页，跨帧缓存）。</li><li>第 4 步（着色）：从正向着色一路演进到延迟着色管线里的独立 deferred shadow pass——FF16 的技术文档（书架 ff16-shadow-2023）把阴影拆成独立 phase 先渲染阴影因子再上采样合成，就是这步的现代形态。</li></ul>
+<p class="ex-sub">【一个常被忽略的顺序细节】第 3 步必须在第 4 步前完成（有依赖），所以级联深度 pass 无法与主场景 pass 重叠，多级联会串行拉长帧时——这是后来 GPU-driven 渲染（书架 gpu-driven-pipelines-2015）与页式方案要解决的结构性痛点之一。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>顶点着色器执行以下作：</p>
+<ul><li>计算每个光子图形的纹理坐标（除非在像素着色器中计算所需的纹理坐标）。</li><li>转换和点亮顶点等。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【分工选择题】顶点着色器（VS）负责算每个光子视锥（「光子图形」＝light sub-frustum）的纹理坐标——也就是把顶点变换到各级联的光空间并落 UV；括号里给出替代方案：坐标也可以延后到像素着色器（PS）再算。这是经典的带宽/算力交换题：VS 算＝每个顶点算 N 级联坐标、经插值器（interpolator）传给 PS，插值器槽位和插值带宽被占用，但 PS 省下矩阵乘；PS 算＝插值器只传世界/视空间位置，PS 里按选中的级联做一次矩阵乘。级联多（4–8）时 VS 方案的插值开销线性上涨，所以现代实现几乎都选 PS 端计算，或 VS 只算光视图空间的统一坐标（后文 map-based 选择与导数两节正是这么做的——在级联无关的空间里插值，PS 再按级联缩放）。</p>
+<p class="ex-sub">【「转换和点亮顶点等」】即常规的顶点变换与光照；提醒：深度 pass 的 VS 是精简版（position-only），主场景 pass 才是全量。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>像素着色器执行以下作：</p>
+<ul><li>确定正确的阴影映射。</li><li>根据需要转换纹理坐标。</li><li>对级联采样。</li><li>照亮像素。</li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【PS 四步】选级联 → 变换坐标 → 采样 → 光照合成。前两步是 CSM 特有的开销（相对单张贴图多出来的指令），后文两节（基于间隔/基于地图的级联选择）就是对前两步的两种实现。第三步「对级联采样」在有滤波时展开成一圈采样循环（PCF）或一次带统计的采样（VSM），成本主要在这里。</p>
+<p class="ex-sub">【分支发散是隐藏考点】四级联的选择是像素级分支，相邻像素可能选不同级联——这在旧架构上意味着发散，在辅助派生计算（ddx/ddy）时更会产生错误值。这个坑文章要到最后导数两节才揭晓，先把结论放在这：CSM 的所有派生类计算都要在级联无关的空间里做，再按级联缩放。这一原则今天依然写在每个引擎的阴影着色器注释里。</p>
+<p class="ex-sub">【与现代管线的接缝】在延迟着色管线里，这四步通常整体搬到一个独立的屏幕空间阴影 pass（对 G-Buffer 的世界坐标做），结果写入低分辨率阴影因子缓冲再上采样——FF16（书架 ff16-shadow-2023）与《对马岛之魂》《幽灵线：东京》的开源分享都属于这条路线，好处是分辨率解耦与复用 TAA/上采样器。</p></div>
+</article>
+</section>
+<section class="chapter" id="partitioning">
+<header class="ch-head"><span class="ch-en">Partitioning a Frustum</span><h2>分割视锥</h2></header>
+<article class="para">
+<div class="zh"><p>对 frustum 进行分区是创建子frusta 的行为。 拆分 frustum 的一种方法是计算 Z 方向的间隔从零% 到 100%。 然后，每个间隔表示一个近平面和一个远平面作为 Z 轴的百分比。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【分割段的定义】分割（split/partition）就是在视锥（相机近/远平面之间）沿视线方向插入若干切割面，得到 N 个分割段（cascade interval）。「从 0% 到 100% 的 Z 间隔」就是把近远平面间距离按比例切；实现里更常用绝对距离（如 0.5m、8m、35m、150m），百分比和绝对距离是一回事的两种表达。</p>
+<p class="ex-sub">【为什么沿视线切】因为透视锯齿沿深度方向变化最快：屏幕像素的世界足迹随 z 线性放大（前文算过 Δx ≈ z/960），沿 X/Y 切没有任何意义，只有沿 Z 分段才能让每段的「贴图覆盖宽度」与该段的 z 成正比，从而让 texel 密度跟上像素密度。这条「沿失配变化最快的轴分段」的思路是所有采样匹配问题的通用解（LOD、clipmap、虚拟纹理都是它的变体——UE5 VSM 对定向光用 clipmap，等于把分段从 Z 轴推广到了距离+方向的二维）。</p>
+<p class="ex-sub">【分割面是平面还是盒子】分割面垂直于视线，但每段最终的渲染包围体是它在光空间的 AABB——这正是下一章「计算视锥包围体」的内容。先有 Z 间隔（多长），再有包围盒（多大多宽），两步合起来才是一个级联的完整几何。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 3. 任意查看分区的 frustum</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 3 画的是一个普通视角下被若干垂直于视线的平面切开的三维视锥（金字塔台被横切几刀），标注出每个分割段的近/远平面。它的作用是建立直觉：分割是沿视线的横切，不跟随场景物体，也不随光源方向变化。配图见原文链接。</p>
+<p class="ex-sub">【读图要点】注意切割面之间是「不等距」的——靠近平面的段窄、远处段宽，这是下一句要展开的时间稳定性与对数分布的视觉预告。真正实现时这个图还要在脑内旋转到光空间去看：每个分割段在光空间投影成一个扁盒，级联贴图就铺在这个盒上；段与段的盒子在光空间可能互相咬叠（对撞视锥时咬叠最凶），这是后文图 5 的伏笔。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>实际上，重新计算每个帧的棱锥拆分会导致阴影边缘闪闪发光。 通常接受的做法是为每个方案使用一组静态级联间隔。 在此方案中，沿 Z 轴的间隔用于描述分区 frustum 时发生的子校验和。 确定给定场景的正确大小间隔取决于多个因素。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【为什么不能每帧重算分割】机翻的「棱锥拆分导致阴影边缘闪闪发光」原文是：每帧重新计算分割会引起阴影边缘的闪烁。机制：分割面移动 → 每个级联的覆盖范围突变 → 贴图的 texel 世界尺寸跳变 → 阴影边缘在屏幕上不连续地游移。这是时间稳定性问题，不是质量问题：单帧看每帧的动态分割都更优，连起来看在闪。于是 2010 年的共识是静态间隔（一组固定 Z 距离），「子校验和」是 sub-frusta 的机翻乱码。</p>
+<p class="ex-sub">【静态分割怎么取：对数是理论答案】PSSM（书架 psss_gpugems3）给出的推导值得背下来：要让每级联 texel 尺寸与该段深度成正比，分割点应取几何级数 z_i = n·(f/n)^(i/N)（对数分布）。用前文的例子验证：n=0.5、f=1000、N=4 → 分割点 0.5 / 3.3 / 22 / 150 / 1000 米，每段按自身远端宽度拟合同尺寸贴图，恰好段段近似 1:1——理论自洽。但纯对数会把绝大部分段堆在近处、远处一个段要管几百米（阴影糊成团），所以工程上用张等人的实用折中：z_i = λ·对数 + (1−λ)·均匀，λ 在 0.5–1 之间调。</p>
+<p class="ex-sub">【本文的一个知识缺口与过时点】本文只说「静态间隔、按场景调」，没给公式（去 PSSM 补）。更重要的是「每帧重算会闪、所以用静态」这个 2010 年结论已被 SDSM（书架 sdsm2010，Lauritzen，I3D 2011）推翻了一半：SDSM 每帧从上一帧深度缓冲统计 min/max 来自动拟合分割与包围盒，配合时间滞后、拟合钳制和 texel 对齐后既动态又稳定——现代 3A 的主流是「SDSM 式自动拟合 + 艺术家定安全边界」。Ryse（书架 ryse-son-of-rome-2014）与 FF16（书架 ff16-shadow-2023）的级联都属于这条谱系。</p></div>
+</article>
+<div class="sec-h"><h3>场景几何图形的方向</h3><span class="sec-h-en">Orientation of the Scene Geometry</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节回答「分割点放哪」的第一个依据：不是物体本身，而是相机与几何的关系——同一个游戏，地面摄像机和航拍摄像机需要完全不同的静态间隔。这是从算法参数走向内容调参的第一步：CSM 的最终手感是按玩法相机调出来的。</p></div>
+<article class="para">
+<div class="zh"><p>对于场景几何图形，相机方向会影响级联间隔选择。 例如，一个离地面很近的相机，如足球比赛中的地面摄像头，具有与天空中的相机不同的静态级联间隔集。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【内容驱动参数】地面摄像头（足球游戏、第三人称近地视角）的视锥里近处地面占了大部分屏幕，近端分割要密、远端快速淡出；天空/航拍相机则相反——地面距离被拉开，透视锯齿压力整体下降，近端不需要那么密的分割。所以「级联间隔集」应当按相机模式切换（走路/驾驶/飞行各一套），这是开放世界游戏的常规配置（书架 farcry5-openworld-2018、tiandao-mmo-2020 里都能看到按玩法调阴影预算的思路）。</p>
+<p class="ex-sub">【一个更深的读法】相机高度决定了「最近可见几何的距离」：贴地时 near 可以压到 0.1m 量级，分割链必须从极近处铺起；升高后近端级联迅速失去意义。与其说是「方向」，不如说是相机高度（等效于近处几何的距离分布）在驱动参数。现代引擎把这个观察自动化了：SDSM 用实际深度分布代替对相机姿态的猜测，UE5 VSM 则干脆按每像素需求分配页，不再需要预设间隔。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 4. 不同的配置需要不同的 frustum 拆分 （左）当几何图形在 Z 中具有高动态范围时，需要大量的级联。 （中心）当几何图形在 Z 中具有低动态范围时，多个直角几乎没有好处。 （右）当动态范围为中等时，只需要三个分区。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 4 是三联画，对应三种几何深度分布的分割方案：左边场景里物体从眼前一直摆到天边（Z 动态范围大，分割面多而密）；中间场景所有物体挤在相近深度（分割再多没意义）；右边中等范围，三段就够。「多个直角几乎没有好处」是 multiple splits 的机翻错误。配图见原文链接。</p>
+<p class="ex-sub">【把图读成公式】图的横轴其实是 far/near 比值：比值 100:1 以内 2–3 级联足够；1000:1 需要在对数与实用折中之间取 4 级联（主机时代的标准答案，BF3/Frostbite 2 时代的 DICE 讲义即书架 bf3-rendering-2011 采用的就是 4 级联量级）；10000:1 以上的超大视距，纯级联方案性价比崩塌，要转向「级联管近中景 + 距离场/烘焙/淡化管远景」的混合——对马岛之魂、天涯明月刀手游这类开放世界作品都是混合方案的实例。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 4 显示了一些不同的相机及其各自的分区。 当场景的 Z 范围非常大时，需要更多的拆分平面。 例如，当眼睛非常接近地面平面时，但遥远的对象仍然可见，可能需要多个级联。 将 frustum 划分，以便更多的拆分靠近眼睛（其中透视锯齿正在变化最快）也是有价值的。 当大部分几何图形被合并到视图的小型部分（例如开销视图或飞行模拟器）时，需要较少的级联。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻纠偏】「开销视图」＝overhead view，俯视/顶视角；本段中间被机翻吞了一个括号，句意为：当大部分几何集中在视图的一小部分（如俯视或飞行模拟），需要的级联更少。</p>
+<p class="ex-sub">【近密远疏的两个理由】把分割面靠近视线起点 packed，一是前文算过的：屏幕像素世界足迹与 z 成正比，近处像素「贵」；二是近处恰是玩家注意力所在，伪影容忍度最低。这与对数分布的结论一致——对数分割天然近密远疏，所以说本文这句定性描述就是几何级数的白话版。</p>
+<p class="ex-sub">【俯视为何省级联】俯视时视线不再扫过近处地面，近端（0.5–5m）这一整段深度里几乎没有接受者（receiver），从这段开始的级联全在空转；砍掉近端级联或整体外推分割链即可。策略类/上帝视角游戏因此常用 1–2 级联甚至单张贴图。</p></div>
+</article>
+<div class="sec-h"><h3>光和相机的方向</h3><span class="sec-h-en">Direction of the Light and the Camera</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节是分割章的收尾，也是 CSM 几何里最容易被教程略过的一段：分割不仅由相机决定，还由光与相机的夹角决定。它解释了为什么同一套参数在「正午」和「黄昏」画面里质量天差地别。</p></div>
+<article class="para">
+<div class="zh"><p>每个级联的投影矩阵紧贴在其相应的子图和周围。 在视图相机和光线方向是正交的配置中，级联可以紧密拟合，几乎没有重叠。 随着光线和视图相机进入平行对齐方式（图 5），重叠变大。 当光线和视景相机几乎相反（对面），它被称为“决斗福斯塔”，并且对于大多数阴影算法来说，这是一个非常困难的场景。 限制光线和相机并不罕见，因此这种情况不会发生。 但是，CSM 的性能比本方案中的许多其他算法要好得多。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【几何本质：斜投影的惩罚】每级联的正交投影要把它负责的子视锥（「子图」）整个框进光空间的包围盒里。当光 ⊥ 视线（经典的侧逆光），子视锥沿光轴的厚度薄，包围盒小而紧。当光 ∥ 视线（正顶光/正逆光），子视锥在光空间的投影被拉长——同一深度带的表面在光平面上的落点散得很开，包围盒必须撑大，texel 变粗，而且各段包围盒互相嵌套咬叠（重叠＝同一块世界被多张贴图重复覆盖，分辨率被稀释）。极端情形是对撞视锥（dueling frusta，「决斗福斯塔」，光正对着相机来）：视线方向与光线方向几乎共线，任何基于光空间投影的算法都在劫难逃——LiSPSM 这类靠扭光空间的方案直接退化，PSM 数值爆炸。</p>
+<p class="ex-sub">【游戏的现实解】这句原文值得划线：限制（clamp）光线与相机的相对角度是常见做法——在美术/技术美术层面直接约束太阳高度角范围、镜头朝向与太阳的夹角，让最坏情况不出现。你在游戏里看到的正午阴影质量骤降、镜头一转阴影变糊，多半就是撞上了平行/对撞配置。</p>
+<p class="ex-sub">【为什么 CSM 相对扛造】因为级联把视锥按深度切开，每个子视锥小、包围盒的膨胀是分段发生的：最坏只有部分级联受害，而不是整张贴图。这个「分段把最坏情况局部化」的性质是 CSM 对替代算法的最大实践优势之一。现代方案里，UE5 VSM 用页分配天然免疫（每页只覆盖实际有接受者的区域）；RT 阴影（书架 codmw2020、leblanc-acshadows-rt-2025）则完全不存在投影拟合问题——但代价换成射线发射与降噪。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 5. 随着光方向与相机方向的并行，级联重叠增加</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 5 是一组俯视示意：视锥（相机朝向的梯形）与光线方向夹角从垂直逐渐转向平行，下方对应的各级联光空间包围盒从紧凑排列逐渐膨胀、互相侵入，重叠面积被涂色标出。它把上一段纯文字的几何论证画成了图。（源文本里这一行下面还残留了一句重复的机翻碎片「的平行而增加」，是同一图注被抽取两次，已略去。）配图见原文链接。</p>
+<p class="ex-sub">【看图的钥匙】盯住重叠色块面积随夹角的变化率：从 90° 到 45° 几乎不变，接近 0° 时急剧恶化——非线性。这告诉你工程上 clamp 太阳角度不需要太苛刻，避开最后 15–20° 就能保住大部分质量。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>许多 CSM 实现使用固定大小的 frusta。 当 frustum 以固定大小间隔拆分时，像素着色器可以使用 Z 深度为级联数组编制索引。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【为下一章埋的伏笔】这句是「基于间隔的级联选择」的前提：只有当分割是 Z 轴上固定的已知区间，像素才能用自己的视图空间深度直接算出该进哪个级联——一次比较加前缀和，无需遍历。反过来，若级联不按 Z 区间组织（比如各自独立紧贴合后空间上犬牙交错），就只能用基于地图（map-based）的边界测试。固定间隔换分支效率、牺牲贴合自由度，这个交换在下一章会反复出现。</p>
+<p class="ex-sub">【固定大小的另一重含义】原文 fixed-size frusta 也暗示各级联贴图同尺寸（同分辨率），与纹理数组/图集的硬件要求呼应：不同尺寸的级联塞不进同一个数组，只能进图集并各自记录 UV 变换。</p></div>
+</article>
+</section>
+<section class="chapter" id="frustum-fitting">
+<header class="ch-head"><span class="ch-en">Calculating a View-Frustum Bound</span><h2>计算视锥包围体：两种贴合</h2></header>
+<article class="para">
+<div class="zh"><p>选择 frustum 间隔后，使用以下两个之一创建子frusta：适合场景并适合级联。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【本章问题】Z 间隔定了「每段多长」，还差「每段多宽多厚」——即每个子视锥在光空间的包围盒（bounding box）。包围盒决定正交投影的范围，直接决定 texel 世界尺寸（texel = 盒宽 / 贴图分辨率），所以贴合（fitting）方式是级联质量的第二大杠杆。文章给出两个选项：fit to scene（适合场景）与 fit to cascade（适合级联）。</p>
+<p class="ex-sub">【标准做法先补齐】无论哪种贴合，流程都是：取该级联子视锥的 8 个角点 → 变换到光空间 → 每个轴取 min/max 得 AABB → 由 AABB 构造正交投影。两种方案的差别只在「这 8 个角点从哪个视锥取」「Z 轴怎么取」。SDSM（书架 sdsm2010）后来把这套手工几何改成从深度缓冲统计实际 min/max——思路一脉相承：包围盒贴得越紧，texel 越细。</p></div>
+</article>
+<div class="sec-h"><h3>适合场景</h3><span class="sec-h-en">Fit to Scene</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>第一种贴合：所有级联共用同一个近平面（取整个视锥在光空间的最小深度），只按各自的 Z 远端收敛范围。代价是级联在深度方向大量重叠，换来的是相机移动时的尺寸稳定性——细节见下一段与图 6。</p></div>
+<article class="para">
+<div class="zh"><p>可以使用相同的近平面创建所有 frusta。 这迫使级联重叠。 CascadedShadowMaps11 示例调用此技术适合场景。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【贴合的几何】fit to scene：每个级联的光空间盒子都以整个视锥的最小 Z（场景级近平面）为起点，只按本段视锥的 XY 范围收缩。效果是近处级联的内容会完整地出现在远处级联里（Z 方向重叠），远级联等于花了一半 texel 重复存了近级联已经存过的深度。「迫使级联重叠」就是指这种 Z 方向的冗余覆盖。</p>
+<p class="ex-sub">【为什么愿意付这个代价】稳定性：所有盒子共享同一个 Z 基准，相机前后平移时盒子的 Z 端点几乎不动，正交投影尺寸稳定，阴影不游移。对比下面 fit to cascade 的「盒子随视锥方向涨缩」，这是拿分辨率买时间稳定。图 6 一节会把这个交换摆到桌面上算。</p></div>
+</article>
+<div class="sec-h"><h3>适合级联</h3><span class="sec-h-en">Fit to Cascade</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>第二种贴合：每个级联用自己分割段的实际近/远平面——盒子最紧、texel 最细，但盒子随视锥方向变化，相机一动正交投影就涨缩，产生游移伪影；对撞视锥下退化最凶。</p></div>
+<article class="para">
+<div class="zh"><p>或者，可以使用实际分区间隔创建 frusta 作为近平面和远平面。 这会导致更紧密的拟合，但在决斗时退化为场景。 CascadedShadowMaps11 示例调用此技术适合级联。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【「在决斗时退化为场景」】机翻破碎句，原文是：贴合更紧，但在对撞视锥（dueling frusta）场景下退化——即上一章图 5 的最坏情况：光与相机几乎共线时，各段的实际远平面沿光轴拉得极开，紧贴合反而把盒子拉成长条，分辨率优势荡然无存。</p>
+<p class="ex-sub">【紧贴合赚多少】省的就是 fit to scene 里那段 Z 冗余。定量直觉：若整个视锥在光空间的深度跨度是 D，第一分割段自身只有 d1，fit to scene 让第一级联也背负 D 的深度范围，正交投影要放大到能装下 D——但正交投影的 XY 分辨率只跟盒子宽度有关，Z 冗余的真正代价是深度精度摊薄（需要更大偏移才不 acne）与（在某些硬件布局里）纹理页浪费。所以两种贴合之争本质是「XY 紧不紧」与「Z 稳不稳」之争。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 6. 适合场景与适合级联</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 6 左右分栏，把同一分割方案下两种贴合生成的光空间包围盒叠在场景俯视图上：左边（fit to scene）各级联盒子在 Z 方向齐头起跑、互相套叠，边缘虚线表示被浪费的重复覆盖；右边（fit to cascade）盒子一段咬一段、几乎无缝，但对齐方向随视锥摆动。图下方通常还给出同一场景两种方案的实际截图对比（右边的阴影边缘更干净）。配图见原文链接。</p>
+<p class="ex-sub">【看图的钥匙】注意右图盒子是斜的：它沿光轴排布、随视锥朝向旋转。把这个「斜」字记在心里，下一句「正交投影根据视锥的方向增长和收缩」就自明了。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 6 中显示了这两种方法。 适合级联浪费的分辨率更少。 适合级联的问题在于，正交投影根据视锥的方向增长和收缩。 适合场景的技术通过视图 frustum 的最大大小填充正交投影，以删除在视图相机移动时出现的项目。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【核心权衡：紧 vs 稳】fit to cascade 浪费少但盒子随视锥朝向涨缩——相机旋转时子视锥在光空间的投影面积连续变化，texel 世界尺寸跟着变，阴影边缘缓慢「呼吸/游移」（原文「出现的项目」＝artifacts）。fit to scene 的对策是按视锥的最大可能尺寸填充正交投影：把尺寸钉死在最坏情况，盒子不随相机动，伪影消失，代价是常态下永远在为一个用不到的最大值买单（贴图分辨率被稀释）。</p>
+<p class="ex-sub">【2010 年的二选一，今天的三件套】这是全文最过时的段落之一。现代实现不再二选一，而是三件套组合拳：</p>
+<ul><li><strong>texel 对齐（texel snapping）</strong>：把光空间平移量取整到 texel 步长，相机平移时贴图网格在世界中锁定，亚 texel 游移消失——这就是姊妹篇《改进阴影深度地图的常见技术》里「以纹素大小增量移动光」一节的内容，本文下一块直接点名引用。</li><li><strong>旋转锁定</strong>：正交投影不随相机 pitch/yaw 重拟合（或把旋转量化到 texel 网格），旋转伪影随之消失；缺点是贴合变松，通常近级联锁定、远级联放松。</li><li><strong>SDSM 拟合</strong>（书架 sdsm2010）：用上一帧深度缓冲统计 min/max 代替「视锥最大尺寸」这个悲观假设，紧贴 + 时间滞后钳制，兼得两方；Ryse（书架 ryse-son-of-rome-2014）与 FF16（书架 ff16-shadow-2023）的定向级联都是这条路线的生产级版本。</li></ul>
+<p>换句话说，本文给出的「稳定 = 放弃紧贴」前提，在 texel 对齐 + 稳定拟合出现后已经不成立。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>改进阴影深度地图的常见技术 解决了在“以纹素大小增量移动光”部分时出现的项目。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【交叉引用的机翻噪音】这句是行内链接被机翻压扁的产物，原文意思是：关于相机移动产生的游移伪影，请看姊妹篇《改进阴影深度地图的常见技术》中「以纹素大小增量移动光」（Moving the Light in Texel-Sized Increments）一节。「项目」依旧是 artifacts。</p>
+<p class="ex-sub">【把 texel 对齐讲透】机制：把光空间正交投影的平移分量除以 texel 世界尺寸、取整、乘回去——光空间原点被吸附到 texel 网格点上。效果：相机平移时，世界里每个 texel 的 footprint 不动，贴图内容只是整体搬格子，阴影边缘在屏幕上保持亚像素稳定。两个工程细节：①texel 尺寸要用贴合盒的宽/贴图分辨率算，每级联各自 snap；②snap 只救平移，不救旋转——旋转要么锁死、要么量化到粗角度档位。UE4/UE5 的 CSM 一直默认做 texel 对齐，你在编辑器里平移相机看阴影边缘纹丝不动，就是它的功劳。这套稳定性工程在本文成文时刚成型，SDSM 讲义（书架 sdsm2010）里有最系统的论述。</p></div>
+</article>
+</section>
+<section class="chapter" id="render-shadow-map">
+<header class="ch-head"><span class="ch-en">Rendering the Shadow Map</span><h2>渲染阴影贴图：缓冲打包</h2></header>
+<article class="para">
+<div class="zh"><p>CascadedShadowMaps11 示例将阴影映射呈现到一个大型缓冲区中。 这是因为纹理数组上的 PCF 是 Direct3D 10.1 功能。 对于每个级联，都会创建一个视区，该视区涵盖对应于该级联的深度缓冲区部分。 空像素着色器是绑定的，因为只需要深度。 最后，为每个级联设置正确的视区和阴影矩阵，因为深度映射一次呈现到主阴影缓冲区中。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【打包方案：一张大缓冲 + 多视口】「呈现到一个大型缓冲区」即图集（atlas）打包：所有级联拼进同一张 2D 深度纹理，每级联一个视口（viewport），各自用自己的阴影矩阵（光空间正交投影 × 本级联在图集内的 UV 偏移与缩放）把深度写进自己那一块。动机原文写得很清楚：Direct3D 10（SM4）的纹理数组不支持比较采样（PCF），10.1 才补上；示例要兼容 10 硬件，只能拼图集。</p>
+<p class="ex-sub">【这段已经整段过时】图集打包在今天是反面教材：DX12/Vulkan/Metal/GLES3 全部原生支持 Texture2DArray + 比较采样器（Vulkan 的 opCompareEnable、GLSL 的 sampler2DArrayShadow），标准做法是数组 + 每级联一个 slice + 每级联一个视口，理由有三个：①图集要手工处理级联边界渗色（PCF 内核越界读到隔壁级联的脏数据——后文「PCF 内核的填充」一节整节都在救这个问题，数组方案里根本不存在）；②图集要手动做 UV 偏移缩放，数组只换 slice 索引；③数组每 slice 独立，方便逐级联清除与不同分辨率（虽然惯例仍同尺寸）。</p>
+<p class="ex-sub">【空像素着色器】null PS 是 depth-only pass 的经典写法：不绑定像素着色器，光栅化只走 EarlyZ/深度写入，省掉全部像素着色器开销。现代形态：position-only 顶点着色器（只读 position 属性，带宽最省）+ 关闭颜色写入；DX12 里就是只绑 DSV 不绑 RTV。再叠加两个现代预算项是 2010 年不存在的：其一，深度 pass 是粗像素/双速着色的最佳候选（书架 vaidyanathan-coarse-pixel-shading-2014、drobot-software-vrs-2020、fuller-vrcs-doom-2025——VRS 时代阴影 pass 常以 1/2 或 1/4 速率跑，等于把「每级联全场景重绘」的成本砍掉一大块）；其二，逐级联遮挡物剔除 + GPU-driven 合批（书架 gpu-driven-pipelines-2015）把 N 倍 draw call 压成 N 次 instanced draw。</p>
+<p class="ex-sub">【「一次呈现到主阴影缓冲区」】所有级联顺序写进同一缓冲；这也意味着级联间无法并行（不同视口串行切换）。FF16（书架 ff16-shadow-2023）把阴影整体挪进延迟管线的独立 phase，按 G-Buffer 深度反推需要哪些级联，再按级联重要性分配预算——打包问题从「怎么塞进一张图」升级成了「怎么在一帧里调度一组 pass」。</p></div>
+</article>
+</section>
+<section class="chapter" id="cascade-selection">
+<header class="ch-head"><span class="ch-en">Rendering the Scene</span><h2>渲染场景：级联选择与边界混合</h2></header>
+<article class="para">
+<div class="zh"><p>包含阴影的缓冲区现在绑定到像素着色器。 有两种方法可用于选择 CascadedShadowMaps11 示例中实现的级联。 这两种方法通过着色器代码进行解释。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【本章两问】阴影贴图绑好后，着色器面对两个问题：这个像素该用哪级联（选择），以及怎么把选中的贴图采样得没有接缝（混合）。原文给出两种选择算法——基于间隔（interval-based）与基于地图（map-based）——并在最后处理两者混合带的接缝问题。这一章是 CSM 区别于普通阴影贴图采样的全部着色器复杂度所在。</p></div>
+</article>
+<div class="sec-h"><h3>Interval-Based 级联选择</h3><span class="sec-h-en">Interval-Based Cascade Selection</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>用像素的视图空间深度对照固定的分割阈值做选择，一次向量化比较加一个点积完成，是两种方案里快的那一个。代价：只适用于按 Z 区间整齐组织的级联。以下代码就是 CascadedShadowMaps11 的原实现，逐行讲解。</p></div>
+<article class="para">
+<div class="zh"><p>图 7. 基于间隔的级联选择</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 7 是一条从近到远的深度轴，上面标着各分割阈值（级联边界），若干像素按深度落到不同区间，每个区间用颜色对应到右边的一张级联贴图。它想说的就是：选择 = 查深度区间表。（源文本此处重复了一行标题「基于间隔的级联选择」，是页面结构重复抽取，已略去。）配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在基于间隔的选择（图 7）中，顶点着色器计算顶点的世界空间中的位置。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻纠偏：是视图空间不是世界空间】下行的代码是 mul( Input.vPosition, m_mWorldView ).z——WorldView 矩阵，取的是视图（眼睛）空间深度，不是世界空间。机翻又错了。整个 interval-based 方案的地基就是「视图空间 Z 可直接对照分割阈值」，因为分割阈值本来就是在视图 Z 轴上定义的（0–100% 那一章）。</p>
+<p class="ex-sub">【为什么在顶点着色器算】深度是线性可插值量（视图空间 Z 对屏幕坐标是仿射的），VS 算一次、光栅化器插值给 PS，PS 直接拿来比较——省掉 PS 里的矩阵乘。这是前文「VS 计算纹理坐标」选项的最小版本：只传一个标量，几乎不占插值器。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>Output.vDepth = mul( Input.vPosition, m_mWorldView ).z;</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这行就是上一句的实现：顶点位置乘世界-视图矩阵取 Z 分量存进输出结构。注意取 .z 而不是 .w——透视投影前的视图空间 Z 本身就是线性深度，直接可用；若已乘投影矩阵就得用 w 恢复线性。一个细节：后面点积比较用的阈值（m_fCascadeFrustumsEyeSpaceDepths）名字里的 EyeSpace 与此呼应，数据口径必须一致（同为视图空间线性 Z），否则级联边界整体错位。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>像素着色器接收内插深度。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>插值后的深度进入 PS。这里有一个值得驻足的细节：视图空间 Z 在透视校正插值下是精确线性的，所以插值结果和逐像素重算完全等价——这就是把选择判断建立在深度上的好处：零近似误差。对比后文 map-based 方案要逐级联变换纹理坐标（每级联一次 2D 矩阵乘），这里 PS 端几乎白拿一个精确的判据。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>fCurrentPixelDepth = Input.vDepth;</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>一行赋值，语义上只是把插值深度改名。单独成段是原文教程式的代码节奏——下面才是本方案的核心技巧：不用 if-else 链，而用向量化比较加前缀和一次算出级联索引。这种「无分支选择」写法在今天的着色器里依然是标准做法（编译器对 if-else 链也会做类似改写，但手写点积版本的行为完全可预期）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>基于间隔的级联选择使用矢量比较和点积来确定正确的 cacade。 CASCADE_COUNT_FLAG指定级联的数目。 m_fCascadeFrustumsEyeSpaceDepths_data约束视图 frustum 分区。 比较后，fComparison 包含一个值 1，其中当前像素大于屏障，当当前级联较小时，值为 0。 点积将这些值求和到数组索引中。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【分支杀手锏：比较+前缀和】四级联的选择朴素写法是四层 if；这里的写法是把深度同时与四个阈值比较（SIMD 一次完成），得到四个 0/1，再加权求和：比阈值 0 大记 1、比阈值 1 大再记 1……总和恰好等于「第一个超过的阈值下标」——比较结果天然构成前缀和，点积就是求和器。「屏障」是 threshold 的机翻；源码里的 cacade 是原文自带拼写错误（cascade）。</p>
+<p class="ex-sub">【off-by-one 疑点】最后 min( fIndex, CASCADE_COUNT_FLAG ) 很可疑：四级联合法索引是 0–3，若深度超过全部四个阈值，fIndex 会等于 4，clamp 到 CASCADE_COUNT_FLAG（=4）仍然越界，正确写法应是 CASCADE_COUNT_FLAG - 1。示例代码的这类边角瑕疵不影响教学，但照抄进引擎会炸最远处的采样——读经典代码也要带审稿眼。</p>
+<p class="ex-sub">【float4 的编译期技巧】下行代码里 float4( CASCADE_COUNT_FLAG &gt; 0, ... &gt; 1, ... ) 用布尔转 float（真=1.0f 假=0.0f）在编译期织出掩码：只有真实存在的级联位参与求和，其余位恒 0，天然支持级联数可配置。这个技巧今天依然常见（例如把循环上限做成编译期常量掩码）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><ul><li><code>float4 vCurrentPixelDepth = Input.vDepth;</code></li><li><code>float4 fComparison = ( vCurrentPixelDepth &gt; m_fCascadeFrustumsEyeSpaceDepths_data[0]);</code></li><li><code>float fIndex = dot(</code></li><li><code>float4( CASCADE_COUNT_FLAG &gt; 0,</code></li><li><code>CASCADE_COUNT_FLAG &gt; 1,</code></li><li><code>CASCADE_COUNT_FLAG &gt; 2,</code></li><li><code>CASCADE_COUNT_FLAG &gt; 3)</code></li><li><code>, fComparison );</code></li><li><code>fIndex = min( fIndex, CASCADE_COUNT_FLAG );</code></li><li><code>iCurrentCascadeIndex = (int)fIndex;</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【逐行读】第一行把标量深度复制成四份装进 float4（为了和四个阈值并行比较）；第二行一次比较产生 0/1 四元组（HLSL 的向量比较返回逐分量布尔再转 float）；dot 把四元组与编译期掩码（见上段解析）相乘求和得到索引；最后转 int 给数组用。整套动作约 5–6 条向量指令，无分支、无发散，在任何 warp 里都是均匀控制流——这就是原文说它「快一些」的全部秘密。</p>
+<p class="ex-sub">【现代等价物】DX12/Vulkan 时代的写法几乎没变，只是阈值常量从数组改成 push constant/根常量传入；如果你在 UE5 源码的 ShadowProjection shader 里看到类似的「深度比对求和」结构，就是同一招。注意与深度无关的替代方案：用指数级联分布时可以把比较改成位运算打包，但原理相同。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>选择级联后，纹理坐标必须转换为正确的级联。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【为什么还要变换】级联选出来了，但像素目前手里只有视图空间深度——采样需要的是「光空间 UV」。m_mShadow[iCascadeIndex] 是每级联的阴影矩阵：光空间视图投影 × 本级联在图集/数组中的缩放与偏移。一次 float4 矩阵乘把世界（或插值的）位置直接打到该级联的 UVZ。注意代码用插值位置（InterpolatedPosition）做乘法——矩阵乘非线性量在三角形上会有透视校正问题，但光空间正交投影下偏差通常可接受；要求精确时改在 VS 输出光视图空间坐标、PS 只做仿射缩放（这正好又是后文导数两节的伏笔）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><div class="formula">vShadowTexCoord = mul( InterpolatedPosition, m_mShadow[iCascadeIndex] );</div></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>一行完成「世界 → 光空间 → 本级联 UVZ」。三个分量的用途在下一句揭晓：xy 采样、z 参与深度比较。这里值得注意的工程点：m_mShadow 数组按动态索引取矩阵——SM4 起支持数组常量的动态索引，但会连带整个常量块绑定；现代管线更喜欢把矩阵打包进结构化缓冲（structured buffer）或逐级联 push。若用图集，这一步同时完成 UV 缩放偏移；若用纹理数组，矩阵只含光空间投影，缩放恒等、更干净。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>然后，此纹理坐标用于使用 X 坐标和 Y 坐标对纹理采样。 Z 坐标用于执行最终深度比较。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【UVZ 三用】这是阴影采样与普通纹理采样的本质区别：比较采样器（comparison sampler）吃三个参数——UV 定位 texel、Z 当比较基准，硬件在采样时逐 texel 做「贴图深度 ≤ 像素深度」的判定并（在 PCF 模式下）对判定结果插值，返回的是「透光比例」而不是颜色。D3D 里对应 SamplerComparisonState + SampleCmp；Vulkan 里是开了 compareOp 的采样器 + texture(sampler2DArrayShadow)。把「深度贴图」和「普通贴图」区别对待是所有阴影代码的第一课。</p></div>
+</article>
+<div class="sec-h"><h3>Map-Based 级联选择</h3><span class="sec-h-en">Map-Based Cascade Selection</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>不看深度，直接拿每个级联的 UV 边界来测试像素落在哪张贴图里——通用（级联不必按 Z 对齐）、稍慢（要逐级联变换与测试），在紧贴合导致区间与覆盖不一致时是唯一正确解。</p></div>
+<article class="para">
+<div class="zh"><p>基于地图的选择（图 8）针对级联的四侧进行测试，以查找覆盖特定像素的最紧密地图。 顶点着色器不会计算世界空间中的位置，而是计算每个级联的视空间位置。 像素着色器循环访问级联，以便缩放和移动纹理坐标，以便为当前级联编制索引。 然后，根据纹理边界测试纹理坐标。 当纹理坐标的 X 值和 Y 值落入级联内时，它们用于采样纹理。 Z 坐标用于执行最终深度比较。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【算法】对每个级联把像素坐标变换到该级联的 UV，测试是否落在 [0,1]² 边界内，落在即选中——「四侧测试」就是上下左右四条边界的区间检查。它不依赖任何 Z 区间假设，级联可以任意摆放（紧贴合后空间犬牙交错、甚至旋转排布都行）。</p>
+<p class="ex-sub">【和 interval 的开销对比】interval：一次比较+点积（O(1) 指令）；map：最坏 N 次矩阵乘+边界测试（O(N)），且循环体内分支随级联数增长。原文没给数字，量级直觉：四级联时 map-based 的选择成本大约是 interval 的 3–5 倍指令数——但放在整个阴影着色（尤其带 PCF 循环）里，这点差距常被采样开销淹没，所以两种方案在真实引擎里都活得很好。</p>
+<p class="ex-sub">【什么时候必须用它】级联不是沿 Z 的干净区间时：比如每级联独立紧贴合（fit to cascade 极限化）、贴图各自锁定旋转、或把级联拼进一张图集后 UV 互相重叠。现代引擎常见折中：interval 粗选（快），边界附近一小段带内再用 map 精选（准）——和后文混合带的做法一脉相承。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 8. 基于地图的级联选择</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 8 画的是光空间平面上一组级联的覆盖矩形（有重叠的方框），以及一个像素点落在重叠区时如何选中「最紧」的那个框；对照图 7 的数轴版本，直观展示两种选择在几何上的差别——区间是一维查表，地图是二维落点测试。配图见原文链接。</p>
+<p class="ex-sub">【看图的钥匙】重点看框的重叠：紧贴合的级联边界并不整齐对齐 Z，一维区间无法描述这种摆放——这就是 map-based 存在的理由。</p></div>
+</article>
+<div class="sec-h"><h3>Interval-Based 选择与 Map-Based 选择</h3><span class="sec-h-en">Interval-Based Selection vs. Map-Based Selection</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>小结段：性能与灵活性的二选一。下面两段一句话一条结论，直接可抄进技术选型文档。</p></div>
+<article class="para">
+<div class="zh"><p>基于间隔的选择比基于地图的选择要快一些，因为可以直接完成级联选择。 基于地图的选择必须与级联边界相交纹理坐标。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【定性结论】interval 直接算（一次比较前缀和），map 要逐级联做坐标变换与边界求交——「相交纹理坐标」是机翻的 test the texture coordinates against the cascade bounds。这条结论今天依然成立，而且被硬件放大了：现代 GPU 上无分支 SIMD 代码的收益比 2010 年更明显（warp 分支回填成本更高、ILP 更敏感）。选型默认 interval，只有级联几何不规则时才上 map。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>基于地图的选择在阴影映射不完全对齐时更有效地使用级联（见图 8）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>「不完全对齐」指级联覆盖与 Z 区间不一致（紧贴合/旋转锁定/图集重叠摆放）。此时 interval 会把像素派给错误的级联（明明落在更紧的贴图覆盖内却被按深度派给松的），白丢分辨率；map-based 逐像素找「覆盖它的最紧贴图」，级联利用率更高。这是一条重要的设计约束倒推：如果你坚持 interval 选择，就必须让级联严格按 Z 区间组织——于是贴合自由度受限——于是回到上一章 fit to scene 的取舍。CSM 的设计空间就是这样环环相扣的。</p></div>
+</article>
+<div class="sec-h"><h3>在级联之间混合</h3><span class="sec-h-en">Blending Between Cascades</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本小节处理 CSM 的招牌伪影：级联边界上的接缝。方案是在边界两侧开一条混合带，带内同时采样两个级联线性插值。它是「用带宽买平滑」的标准操作，也是后续所有级联方案（直到 UE5 VSM 的连续页过渡）都要回答的问题。</p></div>
+<article class="para">
+<div class="zh"><p>VSM（本文稍后讨论）和 PCF 等筛选技术可用于低分辨率 CSM 来生成软阴影。 遗憾的是，这会导致级联层之间的可见接缝（图 9），因为分辨率不匹配。 解决方法是在阴影映射之间创建一个带状，在该映射中对两个级联执行阴影测试。 然后，着色器根据混合带中像素的位置在两个值之间线性内插。 示例 CascadedShadowMaps11 和 VarianceShadows11 提供了可用于增加和减少此模糊带的 GUI 滑块。 着色器执行动态分支，以便绝大多数像素仅从当前级联中读取。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【接缝为什么必然】三个来源叠加：①texel 密度跳变——边界两侧同一片世界在两张贴图上分辨率不同，PCF 的模糊半径（按 texel 计）在世界空间里突然变大/变小，阴影边缘锐度突变；②偏移量不同——各级联 texel 尺寸不同，所需偏移（bias）也不同；③拟合误差——两张贴图各自的光空间投影不同，数值上本就不完全一致。就算贴图内容完全正确，这三条也足以让边界肉眼可见。</p>
+<p class="ex-sub">【混合带的机制与代价】在边界两侧取一条带（按视图 Z 距离定义，如边界前后各 2 米），带内像素对相邻两个级联各做一次完整阴影测试，再按像素在带内的位置 lerp。代价有三：①带内采样数×2（带宽敏感，PCF 大内核时最疼）；②带是屏幕上一条弯曲区域，warp 内部分像素在带内部分在带外——动态分支只能救「整个 warp 都在带外」的多数情况（原文：绝大多数像素仅读当前级联），带附近的 warp 必然发散；③带要足够宽才能藏住接缝，但越宽越贵且阴影越「糊」。</p>
+<p class="ex-sub">【现代替代品】①dither+TAA：把带内插值改成按蓝噪声/交织抖动在两级联间二选一，靠时域累积平滑——带宽省一半、无发散分支，《战地》系列与多款 3A 用过；②核半径按 texel 世界尺寸归一：把 PCF 半径从「N 个 texel」改成「N 倍 texel 世界尺寸」，两边内核在世界空间一致，锐度差先消掉一个来源，接缝自然变淡；③把级联边界藏进距离淡出：远端级联边界处阴影本来就随距离衰减，UE 的 cascade fade 即此思路；④终极方案是连续表示——UE5 VSM 的页过渡在机制上就没有「两张贴图的接缝」问题（单张 16K 虚拟贴图 + clipmap）。GUI 滑块调带宽是本文两个示例专门做的教学装置：拖一下就能看到「接缝—糊带—带宽」三者的交换，值得跑一遍。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 9. 级联接缝 （左）可以看到级联重叠的可见接缝。 （右）当级联混合在一起时，不会发生接缝。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 9 左右对比：左边地面上横贯一条亮暗突变的「台阶线」（级联边界，两侧阴影边缘锐度/偏移不一致），右边同一视角开了混合带，边界消失但过渡区略有模糊。它是本文封面级的症状图——你看到任何游戏里阴影质量「分层」的地方，就是这条线。配图见原文链接。</p>
+<p class="ex-sub">【调试建议】复现它最容易的方式：把各级联染成不同颜色（debug view），接缝与级联排布立刻显形；UE 的 Shadow Cascades 视图模式就是这个用途。</p></div>
+</article>
+</section>
+<section class="chapter" id="filtering">
+<header class="ch-head"><span class="ch-en">Filtering Shadow Maps</span><h2>滤波：PCF 与深度偏移</h2></header>
+<div class="sec-h"><h3>PCF</h3><span class="sec-h-en">PCF</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>本章第一个滤波方案：百分比渐近滤波（percentage closer filtering，「百分比更接近筛选」）。它是从 1987 年一直用到今天的工业默认，理解它为什么「绕」——滤波必须在测试之后——是本节的核心。</p></div>
+<article class="para">
+<div class="zh"><p>筛选普通阴影映射不会产生柔和模糊的阴影。 筛选硬件模糊了深度值，然后将这些模糊值与光空间纹素进行比较。 通过/失败测试产生的硬边缘仍然存在。 模糊的阴影地图只能错误地移动硬边缘。 PCF 支持对阴影映射进行筛选。 PCF 的一般思路是根据通过深度测试的子采样数计算阴影中像素的百分比。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【为什么不能直接滤波阴影贴图】这是全文最值得背下来的一段。阴影贴图里存的是深度（遮挡物的距离），但最终判定「亮/暗」的是一个非线性阶跃函数：比较像素深度与贴图深度，过/不过。硬件的双线性/三线性滤波作用在深度值上——把不同位置的深度加权平均——再把平均后的深度拿去比较。数学上 filter(test(a,b)) 不等于 test(filter(a),b)：平均深度属于「世界上不存在的虚构遮挡物」，比较结果照样是硬边，只是硬边被挪到了错误的位置（原文：只能错误地移动硬边缘）。这是所有「存标量、测阈值」的贴图共有的诅咒（同样的原因导致阴影贴图不能 mip、不能各向异性——直到 VSM 改变存储内容才解开）。</p>
+<p class="ex-sub">【PCF 的天才反转】既然滤波不能作用在深度上，那就作用在测试结果上：固定接收者（receiver）深度，对贴图取一圈采样点逐个测试，统计「通过深度测试的比例」（「子采样」＝subsamples）——通过 75% 就算 75% 亮。阶梯函数被求和近似成了分数，硬边变成渐变。这个思路出自 Reeves、Salesin、Cook 1987 年为 RenderMan 写的深度阴影论文（SIGGRAPH 1987），比 GPU 早了十几年，先在离线渲染成熟、后被硬件吸收成比较采样器。注意 PCF 的「柔」是数学伪影而非物理：它不模拟面积光的半影几何，半径是人为选的——物理正确的半径要按遮挡物-接受者距离推，那是 PCSS（书架 pcss2005）的工作。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>Direct3D 10 和 Direct3D 11 硬件可以执行 PCF。 PCF 采样器的输入包括纹理坐标和比较深度值。 为简单起见，PCF 通过四点击筛选器进行解释。 纹理采样器读取纹理四次，类似于标准筛选器。 但是，返回的结果是通过深度测试的像素的百分比。 图 10 显示了如何通过四个深度测试之一的像素在阴影中为 25%。 返回的实际值是基于纹理读取的子纹素坐标的线性内插，以生成平滑渐变。 如果没有这种线性内插，四点击 PCF 只能返回五个值：{ 0.0,0.25,0.5,0.75,1.0 }。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【硬件版 PCF 的精确含义】把采样器设成比较模式（D3D 的 SamplerComparisonState、Vulkan 的 compareOp=LESS 等），调用 SampleCmp：硬件取 UV 周围 4 个 texel，各自做「贴图深度 vs 参考深度」的二值比较，再按双线性权重对 4 个比较结果插值，直接返回 0–1 的透光率。「四点击」＝4-tap。于是滤波管线（双线性）被复用了，只是搬到了测试之后——PCF 的软件思想被硬件固化成了一条采样指令。</p>
+<p class="ex-sub">【为什么强调插值】没有结果插值时 4 个比较只能给出 0/0.25/0.5/0.75/1 五个离散值——半影只有四级台阶（还能看到色带）；有插值后值连续，半影平滑渐变。这个细节区分了两代硬件能力：SM4 之前的软件 PCF 只有离散输出，D3D10 起比较采样器才有结果插值。</p>
+<p class="ex-sub">【性能直觉】一次 SampleCmp ≈ 一次带额外 ALU 的纹理读取，现代 GPU 的 PCF 4-tap 基本与普通采样同延迟；大内核 PCF 的成本随 tap 数线性走，这也是后文 VSM 用「一次采样换 N 次采样」的动机。现代 GPU 还给了 GatherCmp（一次拿 4 texel 的比较结果自己组合，D3D10.1+），做异形内核（泊松盘）时比多次 SampleCmp 高效——UE 与各大引擎的阴影着色器里到处是它。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 10. PCF 筛选的图像，其中 25% 的选定像素被覆盖</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 10 画的是 2×2 texel 网格：4 个 texel 深度里 1 个比像素深度近（遮挡），3 个远——4 次深度测试通过 3 次、失败 1 次，像素亮度 = 75%（或按原图语义：25% 处于阴影中）。它把「百分比」三个字画成了可数的格子。配图见原文链接。</p>
+<p class="ex-sub">【延伸看懂半影】把图 10 的 2×2 推广到 NxN 就是通用 PCF：半影宽度 = 内核直径 × texel 世界尺寸。级联贴图的 texel 尺寸逐级变大，所以同一内核在远级联上对应的半影更宽——这正是前文接缝三来源里的第一条。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>还可以在没有硬件支持的情况下执行 PCF，或者将 PCF 扩展到更大的内核。 某些技术甚至包含加权内核的示例。 为此，请为 N × N 网格创建内核（例如 Gaussian）。 权重必须加起来最多 1。 然后对纹理采样 N2 次。 每个样本都按内核中的相应权重进行缩放。 CascadedShadowMaps11 示例使用此方法。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【软件 PCF 与大内核】手动循环做 N×N 次 SampleCmp，按内核权重（如高斯）累加——「权重必须加起来最多 1」是 must sum to at most 1 的直译（至多 1，防止半影整体变亮）。成本 N² 次采样：5×5 就是 25 次纹理读取，一个像素 25 次阴影采样在 2010 年已经很贵，今天也依然是带宽大户——这是「大而软的阴影」在纯 PCF 路线上贵得离谱的根本原因。</p>
+<p class="ex-sub">【PCF 不可分离】高斯可以两趟 separable（先横后竖，2N 次），但 PCF 的测试是非线性的，比较结果不可先滤波再组合成另一维——严格做只能 N²。这个「不可分离税」正是 VSM 的核心卖点（它把测试变成统计量后就可分离了），也是后文 VSM 章反复对比的基准。想要物理半影又嫌 PCF 贵，业界的分岔是：PCSS（书架 pcss2005，按遮挡距离变核半径）、CSM 近端硬阴影+远端 PCF 粗核、以及干脆换 VSM/MSM/RT。CascadedShadowMaps11 用循环 PCF 是教学选择，生产代码会用展开+GatherCmp+泊松盘旋转（时间抖动配 TAA 藏规整网格纹）。</p></div>
+</article>
+<div class="sec-h"><h3>深度偏差</h3><span class="sec-h-en">Depth Bias</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>PCF 内核一变大，自阴影伪影（shadow acne）立刻爆炸——本小节解释为什么，并给出偏移（bias）的调参原则：偏移不足生 acne，偏移过头生悬空（peter-panning），收紧近/远平面能让两者同时减轻。这是把 CSM 接上滤波后的第一坑。</p></div>
+<article class="para">
+<div class="zh"><p>使用大型 PCF 内核时，深度偏差变得更加重要。 仅对像素的光空间深度与它映射到深度地图的像素进行比较才有效。 深度地图纹素的邻居引用不同的位置。 此深度可能类似，但根据场景的不同，可能大相径庭。 图 11 突出显示发生的项目。 将单个深度与阴影图中的三个相邻纹素进行比较。 其中一个深度测试错误地失败，因为它的深度与当前几何图形的计算光空间深度无关。 建议解决此问题的解决方法是使用更大的偏移量。 然而，太大的偏移量可能会导致彼得·潘宁。 计算紧近平面和远平面有助于减少使用偏移的影响。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【acne 的几何机制】与中心 texel 比较是公平的（同一位置），但 PCF 把邻居 texel 也拉进来比——邻居 texel 存的是旁边位置的深度，不是这里的。表面在光空间里有坡度时，邻居的深度天然与本位置差 Δz ≈ tan(坡度角) × texel 世界尺寸 × 采样偏移格数。内核越大、坡越陡、级联 texel 越粗，Δz 越大：接收面明明无遮挡，却因为「邻居深度更近」被误判进阴影，成片出 acne。这就是「使用大型 PCF 内核时偏移变得更加重要」的全部数学。</p>
+<p class="ex-sub">【偏移梯子】按代价从低到高：①常数偏移——一个 magic number，坡面照炸；②斜率缩放偏移（slope-scaled bias）——偏移随 ∂z/∂x、∂z/∂y 增长，就是 D3D 光栅器状态里的 SlopeScaledDepthBias，硬件在深度 pass 时直接应用，绝大多数引擎的默认底线；③法线偏移（normal offset）——把采样点沿接收面法线推出 k×texel 尺寸再变换到光空间，等效把比较深度换成斜面外推值，UE 系引擎默认组合（normal offset + slope bias）；④接收面平面外推（receiver-plane depth offset）——用解析梯度把比较深度按采样偏移精确外推，就是本文下一节的 ddx/ddy 方法，最准也最贵；⑤二次深度（second-depth）——存第二层深度比较中点，对封闭几何有效。本文推荐的「计算紧近平面和远平面」（tight near/far）属于精度侧的正交手段：正交投影的深度是线性的，光空间深度范围收得越紧，定点/浮点的有效精度越高，所需的绝对偏移量越小。</p>
+<p class="ex-sub">【一个现代澄清：Reversed-Z 帮不了阴影贴图】这是 2025 年视角最值得写的注脚：主相机普遍改用浮点 Reversed-Z 后精度大涨，于是常有人问阴影贴图要不要也 Reversed-Z——答案是不用。Reversed-Z 的收益来自透视投影的 1/z 非线性（把浮点指数的自然分布对准了近处），而阴影贴图是正交投影，深度本来就是线性的，反转方向不改变误差分布；正交贴图真正有效的手段正是本文说的：收紧 Z 范围 + 合适的字长（16F 常够，复杂场景 32F）。本文这条 2010 年建议到今天依然是对的。</p>
+<p class="ex-sub">【悬空（peter-panning）】偏移过大的症状：接触点/脚下阴影断开，人像悬空——因为比较深度被推得比所有遮挡物都远。「偏移刚好压住 acne 又不脱影」是个随内容漂移的天平，这就是为什么现代引擎宁愿叠加法线偏移+平面外推，把常数偏移压到最小。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 11. 错误自我阴影</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 11 是侧视示意：一个斜面（接收者）投到光空间深度网格上，中心 texel 与斜面深度一致，上下邻居 texel 的深度与斜面在那些位置的「应有深度」有偏差；三个箭头做三次深度测试，一个因邻居深度更近而错误失败——斜面上冒出一条不应有的暗带。配图见原文链接。（配套的下一段文字里 texel 1/2/3 的通过与失败描述被机翻搅乱了顺序，读图时记住判定规则即可：贴图深度更近 = 被遮挡 = 暗。）</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>错误的自我阴影结果是从将浅空间深度中的像素与阴影映射中不关联的纹素进行比较的结果。 浅空间中的深度与深度地图中的阴影纹素 2 相关。 纹素 1 大于浅空间深度，2 等于，3 小于。 纹素 2 和 3 通过深度测试，而纹素 1 失败。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻纠偏】「浅空间」＝light space 光空间；「不关联的纹素」＝unrelated texels。这段用三个 texel 把图 11 讲了一遍：纹素 2 与像素深度相等（正确比较）、纹素 1 更深、纹素 3 更浅。机翻把通过/失败的对应关系说反了一处——按判定规则（贴图深度 ≤ 像素深度判遮挡）与原文图意：与斜面深度不匹配的邻居参与比较，就是伪影来源；哪个具体编号通过与否取决于比较语义的取号，不必纠结机翻表述。</p>
+<p class="ex-sub">【工程读法】这段的真正结论只有一句：深度测试只在「同位置」意义下成立，任何把邻居 texel 拉进比较的滤波都必须额外处理比较深度——要么偏移它（bias），要么外推它（下节的导数法）。理解了这句话，本节后面所有代码都是它的实现。</p></div>
+</article>
+<div class="sec-h"><h3>使用 DDX 和 DDY 计算大型 PCF 的 Per-Texel 深度偏差</h3><span class="sec-h-en">Calculating Per-Texel Depth Bias for Large PCF with DDX and DDY</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>偏移梯子的顶层方案：假设接收面是平面，用屏幕空间导数（ddx/ddy）解析地重建「邻居 texel 处应有的比较深度」，把常数偏移升级成逐采样点精确偏移。这是全文数学最重的一节，也是把 GPU 求导机制讲得最透的一节。</p></div>
+<article class="para">
+<div class="zh"><p>计算大型 PCF 的每个纹素深度偏差，ddx 和 ddy 是计算相邻阴影贴图纹素的正确深度偏差（假设表面为平面）。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【核心假设】表面局部是平面（光空间里 z = ax + by + c 的仿射面）。这个假设在单个三角形内严格成立，跨三角形边界（法线突变/折边）失效——折边处会残留少量伪影，但相比全局常数偏移已是数量级改善。现代法线偏移（normal offset）本质上是同一思想的廉价近似：用法线方向代替解析梯度推采样位置。</p>
+<p class="ex-sub">【名字先对上】ddx/ddy 是 HLSL 屏幕空间求导 intrinsic，返回任意变量在相邻像素间的差分（∂v/∂x_screen、∂v/∂y_screen）。GLSL 对应 dFdx/dFdy。后面整节的工程就是：用这两个差分拼出 Jacobian 矩阵，把「贴图上一个 texel 步长」换算成「比较深度该加多少」。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>此方法使用衍生信息将比较深度与平面相吻合。 由于此方法在计算上很复杂，因此仅当 GPU 具有备用计算周期时，才应使用它。 使用非常大的内核时，这可能是唯一一种在不导致 Peter Panning 的情况下删除自影项目的方法。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【成本与适用边界】几条矩阵乘与一次求逆的 ALU 成本，换每个采样点的精确比较深度。2010 年的判断「仅当 GPU 有空闲算力时用」在当时成立（ALU 稀缺）；今天的 GPU 算力相对带宽富裕得多，这段的权重判断基本反过来了——现代引擎宁可花 ALU 做精确外推/法线偏移，也不愿意放大偏移量去烧画质。大内核时它几乎是无悬空解掉 acne 的唯一手段：内核越大，邻居深度差越大，常数/斜率偏移要么不够（acne）要么过头（悬空），平面外推恰好按采样偏移逐点补偿。</p>
+<p class="ex-sub">【「自影项目」】＝self-shadowing artifacts，自阴影伪影。原文 Peter Panning 按本册术语表译作悬空（peter-panning）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 12 突出显示了问题。 光空间的深度以正在比较的纹素而闻名。 与深度图中的相邻纹素相对应的光空间深度未知。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【问题陈述】已知：当前 texel 的光空间深度（贴图里有）。未知：邻居 texel 对应的世界位置在当前表面上的正确深度。PCF 要用邻居 texel 的贴图深度与「像素深度」比较，但像素深度只有一个（中心点的）——本节要造的就是邻居位置各自的深度。「以……而闻名」是 is known 的机翻。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 12. 场景和深度地图</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 12 左边是斜面场景小图，右边是深度贴图上一小块 texel 方格，中心格标 D（当前像素的正确比较点），周围格子的正确深度画着问号——已知一个点，求邻居。它是下一页矩阵推导的几何底图。配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>呈现的场景显示在左侧，带有示例纹素块的深度地图显示在右侧。 眼空纹素映射到块中心标有 D 的像素。 此比较准确。 与邻居 D 未知的像素相关的眼部空间中的正确深度。 仅当假定像素与 D 相同的三角形相关时，才能将相邻纹素映射回眼睛空间。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻纠偏】「眼空纹素」「眼部空间」＝eye space（视图空间）的机翻。这段的关键句是最后一句：只有假定邻居 texel 属于和 D 相同的三角形（同一平面），才能把邻导 texel 映射回眼睛/光空间求深度——再次强调平面假设。中间那句语序破碎，原意：邻居像素在眼睛空间中的正确深度是未知的。</p>
+<p class="ex-sub">【为什么必须在光空间做】贴图相邻是光空间的相邻；眼睛空间的相邻和它差一个投影变换。这正是接下来要用 2×2 矩阵在两个空间之间搬运「步长」的原因。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>深度以与光空间位置关联的纹素而闻名。 深度图中相邻纹素的深度未知。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【对称重述】同一段意思的第二次表述（原文在此常有一组双语对照的排版）：中心 texel 深度已知，邻居未知。教学文重复问题陈述是在为公式做铺垫。读者的注意力可以直接放到下一段的方案概述与后续代码上——问题清楚了：求 ∂depth/∂texel_step，即沿贴图 x、y 各走一个 texel，比较深度该变化多少。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在高级别上，此方法使用 ddx 和 ddy HLSL作来查找光空间位置的衍生值。 这是非常数的，因为派生运算返回光空间深度相对于屏幕空间的渐变。 若要将其转换为光空间深度相对于光空间的渐变，必须计算转换矩阵。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【方案总纲与唯一的坑】ddx/ddy 给的是「光空间位置随屏幕像素」的变化率（∂light/∂screen）；我们需要的是「深度随贴图 texel」的变化率（∂depth/∂texel）。两个自变量不同（屏幕像素 vs 光空间 texel），中间隔着一个 2×2 线性变换（贴图 UV 到屏幕的 Jacobian），所以「必须计算转换矩阵」——严格说还要求它的逆。「这是非常数的」是机翻，原意接近「这并不直接」（the derivative is not with respect to the right variable）。把这段读成一句话：求导容易，换基才是工作量。</p></div>
+</article>
+<div class="sec-h"><h3>着色器代码的说明</h3><span class="sec-h-en">Explanation in Shader Code</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>接下来是一整段带代码的走读：求导 → 拼矩阵 → 求逆 → 变换 texel 步长 → 点出深度增量 → 进 PCF 循环。五步代码都短，但每一步都在换坐标系，建议边读边在草稿纸上画 2×2 网格。</p></div>
+<article class="para">
+<div class="zh"><p>算法的其余部分的详细信息作为执行此作的着色器代码的说明提供。 可以在 CascadedShadowMaps11 示例中找到此代码。 图 13 显示了光空间纹理坐标如何映射到深度地图，以及如何使用 X 和 Y 中的派生体来创建转换矩阵。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【走读路线图】接下来的代码分五段：①ddx/ddy 取光视图空间位置的导数；②用导数的 xy 分量拼 2×2 矩阵并求逆；③把「右一个 texel」「上一个 texel」两个步长变换到屏幕空间；④与深度的 z 导数点积得到每 texel 的深度增量；⑤在 PCF 循环里按 (x,y) 偏移累加到比较深度上。图 13 画的是这套坐标系搬运的全景。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 13. 屏幕空间到浅空间矩阵</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 13 是坐标系示意：屏幕像素网格、光空间贴图网格两张图并排，箭头标注 ddx/ddy 如何从屏幕相邻像素差分得到光空间坐标变化，两个变化向量摆成 2×2 矩阵的行。「浅空间」＝light space。配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>X 和 Y 中光空间位置的衍生值用于创建此矩阵。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【矩阵的构造】注意选的是光空间位置的 xy（贴图坐标）——不是深度。ddx(p_light).xy 表示屏幕右移一像素、贴图坐标移动多少；ddy 同理。两个二维向量作为行，构成「屏幕步长 → 贴图步长」的线性映射。这个矩阵每像素只需算一次（两次导数 intrinsic），是整个方法的固定开销。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第一步是计算光视空间位置的衍生值。</p>
+<ul><li><code>float3 vShadowTexDDX = ddx (vShadowMapTextureCoordViewSpace);</code></li><li><code>float3 vShadowTexDDY = ddy (vShadowMapTextureCoordViewSpace);</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【起点：级联无关的量】这里求导的对象是 vShadowMapTextureCoordViewSpace——光视图空间坐标（未经本级联缩放偏移的「原始」光空间位置）。这是刻意选择：这个量在级联边界两侧连续，quad 内相邻像素即便选了不同级联也一致——为后文「Derivative-Based 偏移量」一节埋的伏笔在此。两个导数各是 float3：xy 是贴图坐标的变化率，z 是深度的变化率，后面分别用在矩阵和深度增量两处。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>Direct3D 11 类 GPU 通过并行运行 2 个× 2 个像素的四分之二，并减去 X 中邻居的纹理坐标（ddx）和 Y 中的邻居（ddy）来计算这些派生。 这两个派生体构成 2 × 2 矩阵的行。 在此矩阵的当前形式中，此矩阵可用于将屏幕空间相邻像素转换为光空间斜率。 但是，需要此矩阵的反函数。 需要将光空间相邻像素转换为屏幕空间斜率的矩阵。</p>
+<ul><li><code>float2x2 matScreentoShadow = float2x2( vShadowTexDDX.xy, vShadowTexDDY.xy );</code></li><li><code>float fInvDeterminant = 1.0f / fDeterminant;</code></li><li><code>float2x2 matShadowToScreen = float2x2 (</code></li><li><code>matScreentoShadow._22 * fInvDeterminant,</code></li><li><code>matScreentoShadow._12 * -fInvDeterminant,</code></li><li><code>matScreentoShadow._21 * -fInvDeterminant,</code></li><li><code>matScreentoShadow._11 * fInvDeterminant );</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【quad 求导机制】「四分之二」是 quad（2×2 像素四元组）的机翻。GPU 以 quad 为最小着色单位，ddx/ddy 就是 quad 内相邻像素同一变量的差分——代价是发散分支下相邻像素的变量可能来自不同路径，差分变成垃圾值（这是后文两处「导数接缝」的根源，务必记住）。注意：具体差分方向（左减右还是右减左）各家硬件不同，但线性代数结果一致。</p>
+<p class="ex-sub">【为什么要求逆】现有矩阵把「屏幕 1 像素」映射成「贴图走 s 个 texel」；我们需要反问题：「贴图走 1 个 texel」对应屏幕多少像素——链式法则要求把自变量换过去，所以求逆。代码用伴随矩阵法手写求逆（adjoin/det），省一次 intrisic 调用；文章没展示的 fDeterminant = _11*_22 − _12*_21（2×2 行列式），照抄代码时记得补上。数值上矩阵接近奇异（表面近乎平行于光线时 texel 在屏幕上被压成极长条）会导致除以极小行列式——这就是投影锯齿方向上的病态，实际引擎会 clamp 逆行列式幅度。</p>
+<p class="ex-sub">【HLSL 冷知识】float2x2(a, b) 用两个 float2 作「行」构造；._11 等是矩阵元素 swizzle。mul(v, M) 是行向量乘法（v 在左），与数学惯例相反——下一段 mul(步长, matShadowToScreen) 也要按行向量读。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 14. 浅色到屏幕空间</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 14 与图 13 成对：图 13 是屏幕→光空间（导数直接给的），图 14 是求逆后的光空间→屏幕——把贴图上一个 texel 步长画回屏幕平面上，标出它与 ddx/ddy 向量的对应关系。两张图合起来就是链式法则的几何版。配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>然后，此矩阵用于转换当前纹素上方和右侧的两个纹素。 这些邻居表示为当前纹素的偏移量。</p>
+<ul><li><code>float2 vRightShadowTexelLocation = float2( m_fTexelSize, 0.0f );</code></li><li><code>float2 vUpShadowTexelLocation = float2( 0.0f, m_fTexelSize );</code></li><li><code>float2 vRightTexelDepthRatio = mul( vRightShadowTexelLocation, matShadowToScreen );</code></li><li><code>float2 vUpTexelDepthRatio = mul( vUpShadowTexelLocation, matShadowToScreen );</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【两个探针 texel】构造「右 1 texel」(m_fTexelSize, 0) 与「上 1 texel」(0, m_fTexelSize) 两个基向量，用逆矩阵变换到屏幕空间，得到「在贴图上走一步 = 屏幕上走 (Δx, Δy) 像素」。这两个屏幕步长就是深度外推的中间量：知道屏幕位移后，就能用 z 的导数（vShadowTexDDX.z、vShadowTexDDY.z）把深度变化链出来。m_fTexelSize 是本级联贴图一个 texel 的 UV 步长——注意它是级联相关的量，这也是后面强调「矩阵部分级联无关、缩放部分级联相关」的节点。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>矩阵创建的比率最终乘以深度派生数，以计算相邻像素的深度偏移量。</p>
+<ul><li><code>float fUpTexelDepthDelta =</code></li><li><code>vUpTexelDepthRatio.x * vShadowTexDDX.z</code></li><li><code>+ vUpTexelDepthRatio.y * vShadowTexDDY.z;</code></li><li><code>float fRightTexelDepthDelta =</code></li><li><code>vRightTexelDepthRatio.x * vShadowTexDDX.z</code></li><li><code>+ vRightTexelDepthRatio.y * vShadowTexDDY.z;</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【链式法则落地】贴图上 y 方向走 1 texel ⇒ 屏幕走 (a, b) 像素 ⇒ 深度变化 a·∂z/∂screen_x + b·∂z/∂screen_y。代码里 vUpTexelDepthRatio 就是 (a, b)，与两个 z 导数点积得 fUpTexelDepthDelta：贴图每上一格，比较深度该加/减多少。fRightTexelDepthDelta 同理。有了这两个数，比较深度在平面上沿任意方向的外推是线性的：Δz(x, y) = x·rightDelta + y·upDelta——正是 PCF 循环里那句加法的来源。到这里，acne 的解法在数学上已经完整：每个采样点用「该位置的正确深度」去比，而不是拿中心深度硬比。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>这些权重现在可以在 PCF 循环中使用，以向位置添加偏移量。</p>
+<ul><li><code>for( int x = m_iPCFBlurForLoopStart; x &lt; m_iPCFBlurForLoopEnd; ++x )</code></li><li><code>{</code></li><li><code>for( int y = m_iPCFBlurForLoopStart; y &lt; m_iPCFBlurForLoopEnd; ++y )</code></li><li><code>{</code></li><li><code>if ( USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG )</code></li><li><code>{</code></li><li><code>depthcompare += fRightTexelDepthDelta * ( (float) x ) +</code></li><li><code>fUpTexelDepthDelta * ( (float) y );</code></li><li><code>}</code></li><li><code>// Compare the transformed pixel depth to the depth read</code></li><li><code>// from the map.</code></li><li><code>fPercentLit += g_txShadow.SampleCmpLevelZero( g_samShadow,</code></li><li><code>float2(</code></li><li><code>vShadowTexCoord.x + ( ( (float) x ) * m_fNativeTexelSizeInX ) ,</code></li><li><code>vShadowTexCoord.y + ( ( (float) y ) * m_fTexelSize )</code></li><li><code>),</code></li><li><code>depthcompare</code></li><li><code>);</code></li><li><code>}</code></li><li><code>}</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【循环解剖】双层 for 以当前像素为原点扫 NxN 邻域：UV 偏移走 m_fTexelSize 步长采样（注意 x 方向用了另一个常量 m_fNativeTexelSizeInX——图集布局里该级联宽度对应的 texel 步长，行主序贴图的两个方向步长可以不同）；比较深度 depthcompare 在循环内按 (x,y)·平面增量逐点外推（编译开关 USE_DERIVATIVES_FOR_DEPTH_OFFSET_FLAG 控制是否启用，示例里用 GUI 切换做 A/B 对比）；结果累加进 fPercentLit，循环外除以 tap 数得到透光率。</p>
+<p class="ex-sub">【两个现代注脚】①SampleCmpLevelZero 显式取 LOD 0——比较采样没有有意义的 mip，更重要的是绕开隐式 LOD 计算（那需要导数，而本循环处于发散风险区），这是比较采样的标准防御写法，Vulkan 里等价 textureLod + shadow sampler；②这种逐 tap 算术在现代 GPU 上会被编译器向量化，但 tap 数依旧是带宽瓶颈——生产的做法是分离「小内核硬件 PCF」与「大内核分离卷积/降采样缓冲」，FF16（书架 ff16-shadow-2023）的延迟阴影 phase 就是把这一整套搬到低分辨率屏幕空间再做上采样。</p></div>
+</article>
+<div class="sec-h"><h3>PCF 和 CSM</h3><span class="sec-h-en">PCF and CSM</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>一小段收尾：把打包章的结论在这里复述——PCF（比较采样）在 D3D10 上不能用纹理数组，所以级联拼图集；10.1 起数组才支持比较采样。这条限制决定了示例代码形态，也早已被现代 API 抹平。</p></div>
+<article class="para">
+<div class="zh"><p>PCF 不适用于 Direct3D 10 中的纹理数组。 若要使用 PCF，所有级联都存储在一个大型纹理图集中。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【一句老皇历】SM4（D3D10）的 Texture2DArray 不支持比较采样，PCF 只能作用在单张 2D 贴图上，于是四级联拼一张大图集；D3D10.1/SM4.1 起数组比较采样补齐（GatherCmp 也随之而来）。到 DX12/Vulkan/Metal/GLES3 时代这已不是问题：数组 + 每 slice 一个视口是标准做法，图集方案退场的原因在打包一节详述过——边界渗色、UV 手工偏移、无法逐级联清理。读这句的价值在理解「示例为什么这么写」，而不在照抄。</p></div>
+</article>
+<div class="sec-h"><h3>Derivative-Based 偏移量</h3><span class="sec-h-en">Derivative-Based Offsets</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>上一节的方法进了 CSM 就出事：quad 求导遇上级联选择的分支发散，导数变垃圾，级联边界出现新接缝。本小节给出原则性解法——在级联无关的量上求导——它是全文最有现代价值的一段，因为这个坑到今天的 GPU 上依然存在。</p></div>
+<article class="para">
+<div class="zh"><p>为 CSM 添加基于派生的偏移量会带来一些挑战。 这是因为分流控制中的派生计算。 之所以出现问题，是因为 GPU 运行的基本方式。 Direct3D11 GPU 在 2 个像素的 2 × 2 个象限上运行。 若要执行派生，GPU 通常从相邻像素的同一变量副本中减去当前像素的变量副本。 这种情况的方式因 GPU 而异。 纹理坐标由基于地图或基于间隔的级联选择确定。 像素象限中的某些像素选择与其余像素不同的级联。 这会导致阴影映射之间的可见接缝，因为基于派生的偏移量现在完全错误。 解决方法是在光视图空间纹理坐标上执行派生。 对于每个级联，这些坐标都是相同的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【坑的完整链条】GPU 的 ddx/ddy 依赖 quad 内相邻像素的同一变量做差分（「分流控制」＝divergent flow control 分支发散；「象限」＝quad）。级联选择是逐像素分支：quad 横跨级联边界时，邻居像素算出的可能是另一个级联的纹理坐标——两个不同空间的量做差分毫无意义，导数全错，外推出的深度偏移跟着全错，边界上出现一条锯齿状接缝。</p>
+<p class="ex-sub">【解法原则】在级联无关的量上求导：光视图空间坐标（vShadowMapTextureCoordViewSpace）在任何像素处的定义都与选了哪个级联无关——差分合法；级联相关的部分（缩放与偏移）作为后处理乘上去（下一章 VSM 渐变一节的代码就是标准模板）。把这个原则一般化：<strong>任何要参与隐式导数（LOD、各向异性、偏移）的量，都必须在分支之前、在跨分支连续的空间里定义</strong>。这条规则在 2025 年的每代硬件上依然成立（quad 机制没变），UE5 或任何现代引擎的级联着色器里你都能找到一模一样的结构：先统一空间求导、再乘 cascade scale。顺带这也解释了前文 SampleCmpLevelZero 的良苦用心——干脆不用隐式导数。</p></div>
+</article>
+<div class="sec-h"><h3>PCF 内核的填充</h3><span class="sec-h-en">Padding the PCF Kernel</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>图集打包的最后一个坑：PCF 内核在级联边缘越界，读到隔壁级联的脏数据。对策是给每级联外圈垫半个内核宽度的保护带——这也是数组方案免费解决的又一件事。</p></div>
+<article class="para">
+<div class="zh"><p>如果未填充阴影缓冲区，则 PCF 内核索引位于级联分区之外。 解决方案是将级联的外部边缘填充一半的 PCF 内核大小。 这必须在选择级联的着色器中实现，并且必须在投影矩阵中呈现足够大的级联，以便保留边框。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机制】图集里两个级联紧挨着，边界像素的 PCF 循环会伸出本级联半边内核，采样点落进隔壁级联——比较的是不相干物体的深度，边界一条脏带。对策三件套：①级联 UV 判定时把边界内缩半内核（在着色器里做）；②投影矩阵预先把级联画大半内核宽度，留出保护带（「呈现足够大的级联」＝render the cascade large enough）；③保护带里写的是本级联边缘的重复/钳制内容。三件事都得手工对齐，改内核大小要同步改三处——典型的图集税。纹理数组方案里 slice 天然隔离，越界采样自动钳制在 slice 内，这一节整个消失。「填充一半内核」是因为循环中心在像素、tap 从中心向两侧伸，边界只需半宽保护。</p></div>
+</article>
+</section>
+<section class="chapter" id="vsm">
+<header class="ch-head"><span class="ch-en">Variance Shadow Maps</span><h2>方差阴影贴图（VSM）</h2></header>
+<article class="para">
+<div class="zh"><p>VSM（请参阅 Donnelly 和 Lauritzen 方差阴影映射）启用直接阴影映射筛选。 使用 VSM 时，可以使用纹理筛选硬件的所有功能。 可以使用三线性和异性（图 15）筛选。 此外，VSM 可以直接通过卷积模糊。 VSM 确实有一些缺点;必须存储两个深度数据的通道（深度和深度平方）。 当阴影重叠时，光出血很常见。 但是，它们的工作方式非常出色，分辨率较低，可与 CSM 结合使用。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【VSM 的根本棋路：换存储内容，解锁整个滤波硬件】PCF 的死结在「深度上的滤波无意义」。VSM（Donnelly &amp; Lauritzen，I3D 2006）的解法是不存深度本身，改存深度的一阶矩和二阶矩（z 与 z²）——矩是线性量，可以对它做任何线性滤波：双线性、三线性、各向异性（「异性」＝anisotropic 的机翻）、mip、可分离卷积模糊全都合法。判定时从滤波后的矩反推「深度分布的均值与方差」，用统计不等式估计透光率。一次带滤波的采样顶替 PCF 的整圈采样，这是它速度与柔滑的来源。</p>
+<p class="ex-sub">【名字先分清】本文的 VSM＝方差阴影贴图（Variance Shadow Maps）；UE5 文档里的 VSM＝虚拟阴影贴图（Virtual Shadow Maps）——同一个缩写，两个物种，后者是页式 16K 大贴图方案（书架 vsm_ue5_docs），与方差无关。搜资料时务必看全称。</p>
+<p class="ex-sub">【代价清单】①双通道存储（深度+深度平方），显存与带宽 ×2；②遮挡物前后重叠时漏光（light bleeding，「光出血/浅出血」）；③矩的精度敏感（通常要 16F/32F，8bit 会糊成一团）。后两条是 VSM 家族此后十年的主战场：LVSM（本文引用文献之二）、ESM、MSM（书架 peters2015/2017）、AVSM（书架 avsm2010）都在治漏光。GPU Gems 3 的 SAVSM（书架 savsm_gpugems3，Lauritzen 本人写的章节）用求和面积表给 VSM 做各向异性高质量滤波，是本文成文前后最实用的配套技术。</p>
+<p class="ex-sub">【「分辨率较低也能出色」的原因】VSM 的质量来自滤波半径而非贴图密度——半影是卷积卷出来的，与 texel 数解耦，所以低分辨率贴图+大模糊核反而好看。这与 CSM 一拍即合：级联管「密度」，VSM 管「柔化」。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 15. 异向异性筛选</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 15 是一张斜视角地面截图：贴图用 VSM 后开着各向异性过滤，逆着视线方向的阴影边缘依然平滑无闪——这是「VSM 解锁全部滤波硬件」的视觉证据。同样的画面若用 PCF+深度贴图，各向异性会平均不相干的深度值，边缘立刻碎掉。配图见原文链接。</p>
+<p class="ex-sub">【读图钥匙】留意各向异性拉长的采样足迹：视线掠射角越平，各向异性核越瘦长。VSM 对这种变长核毫无压力（矩的滤波是线性的），PCF 则要付出对应 tap 数的代价——核变长多少倍、tap 就多多少倍。</p></div>
+</article>
+<div class="sec-h"><h3>算法详细信息</h3><span class="sec-h-en">Algorithm Details</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>四段短代码把 VSM 讲完：取矩 → 早退比较 → 算方差 → 切比雪夫估计。数学核心是单边切比雪夫不等式（更准确叫 Cantelli 不等式），下面逐段补全概率论背景。</p></div>
+<article class="para">
+<div class="zh"><p>VSM 通过呈现深度和平方到双声道阴影地图的深度来工作。 然后，可以像普通纹理一样模糊和筛选此双声道阴影图。 然后，该算法在像素着色器中使用 Chebychev 的不等性来估计通过深度测试的像素区域的分数。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【一句话管线】深度 pass 时把 z 和 z² 写进双通道贴图（「双声道」＝two-channel 的音频机翻）；然后像处理普通颜色贴图一样随便卷积/模糊/mip；着色时用切比雪夫不等式（「不等性」＝inequality 机翻）从滤波后的矩估计「深度测试通过比例」——注意这个比例现在是滤波域里的统计估计，不需要逐 texel 测试。</p>
+<p class="ex-sub">【概率论骨架】把滤波窗口内遮挡物深度看作随机变量 Z，透光率＝P(Z ≥ z_receiver)（遮挡物都比接收者远的比例）。我们只有滤波给出的 E[Z] 和 E[Z²]，即均值 μ 与方差 σ²——两个矩。单边切比雪夫不等式给出上界：</p>
+<p>P(Z ≥ t) ≤ σ² / (σ² + (t − μ)²)，当 t &gt; μ VSM 直接把这个上界当估计值用。两级洞察：①滤波窗口内深度几乎不变（σ²≈0）时公式退化为硬阴影；②σ² 大时（跨过阴影边缘）给出平滑的过渡——半影自动出现，半径=滤波半径。</p>
+<p class="ex-sub">【矩方法的谱系】两个矩只能刻画「位置+散布」，这是 VSM 一切缺陷的根源；升到 4 个矩就能重建双峰分布（MSM，书架 peters2015）、或直接存透射率函数的采样点（AVSM，书架 avsm2010）、或存深度的指数矩（ESM）。读 VSM 家族的方法论就一句话：用多少个统计量、以什么基去近似那个未知的深度分布。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>像素着色器提取深度和深度平方值。</p>
+<ul><li><code>float fAvgZ = mapDepth.x; // Filtered z</code></li><li><code>float fAvgZ2 = mapDepth.y; // Filtered z-squared</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【读数】mapDepth 是带滤波采样的结果：x＝滤波后的 z（即 E[Z]），y＝滤波后的 z²（E[Z²]）。一行采样同时拿到两个矩——硬件滤波器在这一次采样里就完成了 PCF 要 N 次 tap 才能完成的等效平均。VSM 的省，省在这一个采样点上。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>执行深度比较。</p>
+<ul><li><code>if ( fDepth &lt;= fAvgZ )</code></li><li><code>{</code></li><li><code>fPercentLit = 1;</code></li><li><code>}</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【全亮早退】接收者深度不大于平均遮挡深度（fDepth ≤ μ）时直接判全亮。逻辑：切比雪夫公式只对 t &gt; μ（右尾）有意义，左尾（接收者比平均遮挡物还近，理应全亮）直接短路，省一次除法。这也是上界性质决定的：下界不可估，就明确置 1。注意这个分支不参与导数类计算，没有发散风险。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>如果深度比较失败，则估计点亮的像素百分比。 方差计算为平方的平均值减去平均平方。</p>
+<ul><li><code>float variance = ( fAvgZ2 ) − ( fAvgZ * fAvgZ );</code></li><li><code>variance = min( 1.0f, max( 0.0f, variance + 0.00001f ) );</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【方差与两个防御性细节】方差＝平方的均值减均值的平方（原文「平方的平均值减去平均平方」翻反了主客，公式是对的）。第二行的 clamp 有两重功效：①+0.00001 的 epsilon 防止平坦区域（σ²=0）后面除零；②数值上 E[z²]−(E[z])² 在滤波/量化误差下可能算出小负数，clamp 到 [0,1] 兜底。矩的数值健壮性是 VSM 工程化的一半难度（另一半是漏光），16F 起步、重要场景 32F 的经验来自这里。</p>
+<div class="formula">σ² = E[z²] − (E[z])²</div></div>
+</article>
+<article class="para">
+<div class="zh"><p>fPercentLit 值估计为 Chebychev 的不等性。</p>
+<ul><li><code>float mean = fAvgZ;</code></li><li><code>float d = fDepth - mean;</code></li><li><code>float fPercentLit = variance / ( variance + d*d );</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【三行实现切比雪夫】d＝接收者深度到均值的距离；透光率＝σ²/(σ²+d²)。对照上文的公式：d 就是 (t−μ)。这个分式形状值得记住——d 大（接收者深处阴影内部）时趋于 0，d 小（贴边）时趋于 1，过渡带宽度由 σ² 控制：滤波卷得越宽 σ² 越大、半影越软。</p>
+<div class="formula">P_lit ≤ σ² / (σ² + d²)，d = z_receiver − μ</div>
+<p class="ex-sub">【精确性的诚实账】原文后文说 VSM「更精确」，要打引号：切比雪夫给的是上界，VSM 拿上界当点估计，系统性偏亮偏软；PCF 是无偏的蒙特卡洛平均但带采样噪声。一个是保守界，一个是随机估计——工程上 VSM 的观感常更好（无噪点、过渡平滑），数学上谈不上更精确。</p></div>
+</article>
+<div class="sec-h"><h3>浅出血</h3><span class="sec-h-en">Light Bleeding</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>VSM 的头号伪影：两层遮挡物前后叠放时，本该全黑的区域渗出亮带。本小节讲清成因（两个矩装不下双峰分布）与三代补救（幂函数压暗、避免重叠配置、分层/换矩方法）。</p></div>
+<article class="para">
+<div class="zh"><p>VSM 的最大缺点是轻微出血（图 16）。 当多个阴影投射器沿边缘相互遮挡时，将发生光出血。 VSM 根据深度差异对阴影的边缘进行着色。 当阴影相互重叠时，应隐藏的区域中心存在深度差异。 这是使用 VSM 算法时出现的问题。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【成因的分布语言】「浅出血/轻微出血」＝light bleeding 漏光。机制：滤波窗口里有两个前后相叠的遮挡物（例如栏杆后有一堵墙），窗口内深度分布是双峰——两团各自很窄、彼此拉得很开。两个矩只能看到一个「又宽又平」的方差 σ²：滤波把双峰糊成了一个宽带。于是夹在双峰之间的接收者（被前者完全挡死的区域）用切比雪夫一算：σ² 很大、d 不够大 → 估计出可观的透光率——本该全黑的地方漏出了光。原文「根据深度差异对阴影的边缘进行着色」说的就是：VSM 的半影亮度由深度差驱动，深度差被滤波搅浑时半影就出现在不该出现的地方。这不是实现 bug，是二阶矩表示能力的上限：两个统计量装不下双峰分布，就像均值和方差无法区分「两群人」和「均匀散开的一群人」。</p>
+<p class="ex-sub">【为什么 CSM 会放大它】级联贴图分辨率低、滤波半径大 → 窗口更宽 → 更容易同时罩住两层遮挡物。所以 VSM+CSM 组合里漏光比单张 VSM 更常见——这正是本文推荐 GUI 滑块做对比实验的原因。</p>
+<p class="ex-sub">【根治谱系】四矩（MSM，书架 peters2015/2017）能显式重建双峰，把漏光压到工程可忽略，代价是 64bit/texel 与更多 ALU；分层（LVSM，见下文）沿光轴切层，让每层内只有单峰；指数矩（ESM）用指数基换敏感度。2010 年代中期后 MSM 基本接管了「想要 VSM 式滤波又要画质」的场景。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 16. VSM 光出血</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 16 是经典症状照：柱子/栏杆在地面上投影，双重遮挡的交汇区（应全黑）泛起一条亮带，或角色脚下与墙面阴影交叠处漏光。它和图 9（级联接缝）、图 11（acne）并列本文三大伪影症状图。配图见原文链接。</p>
+<p class="ex-sub">【调试建议】复现最快的方式：场景里摆一前一后两个遮挡物，调大 VSM 模糊半径——半径越大双峰被糊得越平，亮带越亮。这条「模糊半径与漏光强度正相关」是 VSM 调参的第一曲线。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>问题的一个部分解决方法是将 fPercentLit 提升到电源。 这会影响抑制模糊效果，这可能导致深度差异很小的项目。 有时存在一个神奇的价值，可以缓解问题。 fPercentLit = pow( p_max, MAGIC_NUMBER );</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【幂函数补丁】把透光率自乘 N 次（pow(p_max, k)，k&gt;1）：曲线整体压暗，轻漏光（数值略小于 1 的区域）被压到接近 0，重度漏光被压窄成细线——「神奇的价值」＝magic number，直译出来了，指内容相关的手调指数。这是曲线整形不是物理：半影整体变硬变暗是它的副作用（原文：抑制模糊效果，深度差小的区域出现新伪影）。生产上 k 通常 2–4，且与模糊半径联动调。</p>
+<p class="ex-sub">【工程哲学】这类「幂次压暗」补丁在阴影史上反复出现：ESM 用指数放大前后差、MSM 有对应的深度缩放因子、乃至 RT 阴影降噪里的 gamma 校正。本质都是在「上界估计偏松」时人为收紧——遇到它就问一句：这是在修数学还是在藏症状。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>提高功率百分比的替代方法是避免阴影重叠的配置。 即使是高度优化的阴影配置也对光、相机和几何图形具有多种约束。 使用更高分辨率的纹理也减少了光出血。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【内容侧防御】三招都在降低「滤波窗口同时罩住两层遮挡物」的概率：约束光源/相机角度、控制几何叠放（关卡设计与阴影技术的罕见交点）、提高贴图分辨率让窗口相对世界更小。注意第三招与 VSM 的卖点（低分辨率也能好）互相打架——分辨率一提，VSM 相对 PCF 的带宽优势就缩水。这三条「对场景摆位提要求」的约束在 3A 管线里真实存在（阴影技术验收清单里常有「双重遮挡区域走查」一项），但作为通用方案太脆。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>分层方差阴影映射（LVSM）解决了问题，代价是将 frustum 分解成垂直于光的层。 在使用 CSM 时，所需的映射数将相当大。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【LVSM：用空间换单峰】沿光轴把视锥切成若干层，每层独立存矩——每层内的深度分布更接近单峰，漏光被压到层间边界。代价是贴图数量×层数：CSM 已经 N 张级联，再乘 L 层，「相当大」是客气话。LVSM（Lauritzen &amp; McCool，Graphics Interface 2008，本文引用文献之二）在学术上把漏光问题解决了，工程上败给了预算——这也解释了为什么后来 MSM（不切片、升矩数）成了继承者。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>此外，VSM 论文的共同作者安德鲁·劳里森（Andrew Lauritzen）和LVSM论文的作者讨论了如何将指数阴影映射（ESM）与 VSM 相结合，以对抗 Beyond3D 论坛的光混合。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【机翻名场面】这句的原文大概是：VSM 共同作者 Andrew Lauritzen 与 LVSM 作者（McCool）在 Beyond3D 论坛上讨论了 ESM 与 VSM 结合以对抗漏光——机翻把状语挂错，读成了「对抗 Beyond3D 论坛的漏光」。Beyond3D 论坛是 2000 年代图形程序员的神殿（浓集了各大引擎/硬件厂的渲染工程师），许多阴影技术的交流与改进最早就发生在论坛帖子里，这段技术史大部分没有正式论文——SDSM 讲义（书架 sdsm2010）同样出自 Lauritzen，他一人贯穿了 VSM→LVSM→SAVSM→SDSM 谱系，读这一串文献基本等于读了一遍阴影贴图的滤波史。</p>
+<p class="ex-sub">【ESM 是什么】指数阴影贴图（Exponential Shadow Maps，Salvi 与 Annen 等 2008 前后）：存 e^(−c·z) 的指数映射，利用指数函数的凸性把「平均遮挡」变成「遮挡概率」的单调估计。它滤波友好、实现比 VSM 还简单，但 c 大时溢出、遮挡重叠时同样有伪影——所以才有「ESM+VSM 组合」的想法（各取对方的稳定段）。它后来在部分引擎的真实管线里活了下来，MSM 论文（书架 peters2015）把 ESM/VSM/PCF 同台对比过性能与画质。</p></div>
+</article>
+<div class="sec-h"><h3>具有 CSM 的 VSM</h3><span class="sec-h-en">VSM with CSM</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>组合章：VSM 不用比较采样，于是没有 D3D10 数组限制，可以直接用纹理数组（不用图集）；模糊用两趟可分离卷积完成。这是 VarianceShadows11 示例的路线，也是「级联管密度、VSM 管柔化」分工的落地。</p></div>
+<article class="para">
+<div class="zh"><p>示例 VarianceShadow11 结合了 VSM 和 CSM。 组合相当简单。 此示例遵循与 CascadedShadowMaps11 示例相同的步骤。 由于未使用 PCF，因此阴影在双通道可分离卷积中模糊。 不使用 PCF 也使示例能够使用纹理数组而不是纹理图集。 纹理阵列上的 PCF 是 Direct3D 10.1 功能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【组合的全部要点】级联结构照抄 CascadedShadowMaps11（分割、贴合、选择都不变），只换滤波：深度 pass 写双通道矩，然后「两趟可分离卷积」（two-pass separable convolution）——横一趟竖一趟，O(2N) 完成 NxN 模糊。PCF 不可分离的税（N²）在这里被免掉，这正是 VSM 在大软阴影场景的核心竞争力。另一红利：不用比较采样器就没有 D3D10 数组限制，直接纹理数组，前文图集那一节的边界渗色、内核填充、UV 偏移全部不存在。</p>
+<p class="ex-sub">【两趟卷积的工程细节原文没写但很关键】①模糊半径按「texel 世界尺寸」逐级联归一，否则远级联的半影按其粗 texel 卷出来比近级联夸张（接缝又回来）；②深度 pass 与模糊 pass 之间的中间缓冲显存；③动态物体每帧全量重卷积的成本。这些细节决定 VSM 路线的实际预算，也是它后来在主机上让位于「小核 PCF+距离淡出」的原因之一。</p></div>
+</article>
+<div class="sec-h"><h3>使用 CSM 的渐变</h3><span class="sec-h-en">Gradients with CSM</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>VSM 解锁了 mip 与各向异性，而这两样都依赖隐式导数选 LOD——于是导数与级联分支发散的冲突在 VSM 里再次爆发。本小节与「Derivative-Based 偏移量」一节同根：同一个坑、同一套解法，只是这次爆在 mipmap 选择上。</p></div>
+<article class="para">
+<div class="zh"><p>将渐变与 CSM 配合使用可以生成两个级联之间的接缝，如图 17 所示。 示例指令使用像素之间的衍生值来计算筛选器所需的信息，例如 mipmap 级别。 这尤其会导致 mipmap 选择或异性筛选出现问题。 当象限中的像素采用着色器中的不同分支时，GPU 硬件计算的派生体无效。 这会导致阴影图上出现锯齿状接缝。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【「渐变」＝gradients 导数】机翻把 gradient 译成渐变（渐变也是 gradient 的常见义），此处指纹理导数（ddx/ddy 及其隐式使用）。硬件纹理单元靠 quad 内导数决定取哪级 mip、各向异性核拉多长；quad 横跨级联边界时像素各选各的级联，导数是两个不同缩放空间之差——无效，「派生体」＝derivatives。mip 级别选错在阴影上的表现比颜色贴图恶劣得多：相邻 mip 的模糊程度跳变，接缝成锯齿状（图 17）。</p>
+<p class="ex-sub">【与偏移一节对照】Derivative-Based 偏移一节是自己显式调用 ddx/ddy 算偏移，这一节是隐式导数（采样器内部用）选 mip——受害方式不同（显式算错 vs 隐式选错），病灶相同（发散分支下的 quad 差分）。两节合起来是 GPU 求导机制的一堂完整课：<strong>凡是要用导数的东西（显式偏移、隐式 LOD、各向异性），其输入量都必须跨分支连续</strong>。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>图 17. 由于具有不同流量控制的异性筛选，级联边界上的接缝</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【这张图在画什么】原文图 17 是一张地面截图：级联边界横贯画面处阴影出现一条锯齿状断裂带——各向异性采样在边界两侧选了错误的 mip。「不同流量控制」＝divergent flow control（分支发散）。图注源文本下一行还残留了这条图注的英文原文（seams on cascade borders due to anisotropic filtering with divergent flow control），是双语页面重复抽取，正好可当原文参照。配图见原文链接。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>通过计算光视空间中位置的衍生值来解决此问题：浅视图空间坐标不特定于所选级联。 计算派生可以按投影纹理矩阵的缩放部分缩放到正确的 mipmap 级别。</p>
+<ul><li><code>float3 vShadowTexCoordDDX = ddx( vShadowMapTextureCoordViewSpace );</code></li><li><code>vShadowTexCoordDDX *= m_vCascadeScale[iCascade].xyz;</code></li><li><code>float3 vShadowTexCoordDDY = ddy( vShadowMapTextureCoordViewSpace );</code></li><li><code>vShadowTexCoordDDY *= m_vCascadeScale[iCascade].xyz;</code></li><li><code>mapDepth += g_txShadow.SampleGrad( g_samShadow, vShadowTexCoord.xyz,</code></li><li><code>vShadowTexCoordDDX, vShadowTexCoordDDY );</code></li></ul></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【模板代码：先求导、后缩放】四步：在级联无关的光视图空间坐标上 ddx/ddy（合法差分）→ 乘本级联的缩放 m_vCascadeScale（把导数换算到本级联的 UV 空间，各级联贴图分辨率/覆盖不同所以缩放不同）→ 用 SampleGrad 把显式梯度交给采样器（不再用隐式导数）。这五十来个字是全文可迁移价值最高的代码：任何「LOD 敏感的采样 + 逐像素分支选择资源」的组合（级联、clipmap 页、虚拟纹理页、阵列切片）都套这个模板。UE 的 CSM/VSM 采样、各家引擎的 clipmap LOD 里都能找到同构代码。</p>
+<p class="ex-sub">【一个细节】偏移部分（矩阵求逆那节）用的是「导数整体＋缩放后使用」；这里 mip 也一样：导数求出来再乘缩放，而不是在缩放后的坐标上求导。顺序不可颠倒——在级联相关空间求导，发散分支立刻污染差分。这个「顺序」就是本文反复强调的全部要点的最小表达。</p></div>
+</article>
+<div class="sec-h"><h3>与 PCF 的标准阴影相比的 VSM</h3><span class="sec-h-en">VSM vs. Standard Shadowing with PCF</span></div>
+<div class="ex-card"><div class="ex-title">🔍 编辑部按</div><p>收官对比：两条路线的采样数、带宽、ALU、偏移需求、漏光、可分离性逐项对垒。第二段那句「算力增长快于带宽，所以 VSM 更实用」是全文最值得用 2025 年后视镜审的预言。</p></div>
+<article class="para">
+<div class="zh"><p>VSM 和 PCF 都尝试近似通过深度测试的像素面积的分数。 VSM 适用于筛选硬件，并且可以使用可分离的内核模糊化。 可分离卷积内核比完整内核要便宜得多。 此外，VSM 将一个光空间深度与光空间深度地图中的一个值进行比较。 这意味着 VSM 与 PCF 没有相同的偏移问题。 从技术上看，VSM 在更大的区域进行采样深度，以及执行统计分析。 这比 PCF 更精确。 在实践中，VSM 在混合方面做得非常好，这会导致需要较少的偏移量。 如上所述，VSM 的头号缺点是轻微出血。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【逐项对表】</p>
+<ul><li><strong>采样数</strong>：VSM 着色期 1 次（带滤波）+ 离屏两趟模糊；PCF 着色期 N² 次。</li><li><strong>可分离性</strong>：VSM 可分离（2N）；PCF 严格不可（N²）。</li><li><strong>偏移需求</strong>：VSM 拿接收者深度对一个统计值比较，没有「邻居 texel 位置错位」问题，acne 压力天然小，偏移可以给得很小（原文的观察正确）；PCF 要整段偏移工程（本文用一整章讲它）。</li><li><strong>画质</strong>：VSM 平滑无噪但漏光+上界偏亮；PCF 无偏但有采样噪声、大核贵。</li><li><strong>存储</strong>：VSM 双通道（显存/带宽×2）；PCF 单通道深度。</li></ul>
+<p class="ex-sub">【两处要审的话】①「VSM 更精确」——上界当估计，系统性偏亮，谈不上精确，只能说过渡更平滑（前文已析）；②「VSM 与 PCF 没有相同的偏移问题」大体对，但 VSM 有自己的偏移类问题：矩滤波会把本侧遮挡物卷进窗口（边缘发糊/轻漏），实践中仍要小幅偏移。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>VSM 和 PCF 表示 GPU 计算能力和 GPU 纹理带宽之间的权衡。 VSM 需要执行更多数学运算才能计算方差。 PCF 需要更多的纹理内存带宽。 大型 PCF 内核可能会因纹理带宽而快速成为瓶颈。 随着 GPU 计算能力比 GPU 带宽更快增长，VSM 正在成为这两种算法的更实用。 由于混合和筛选，VSM 在分辨率较低的阴影映射中看起来也更好。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【2010 年的预言，2025 年对账】原文赌注：算力增速＞带宽增速 → VSM 赢。十五年对账结果：带宽确实长期是瓶颈（这个方向感是对的——书架里 VRS/粗像素/可见性缓冲一族（vaidyanathan-coarse-pixel-shading-2014、drobot-software-vrs-2020、hable-visibility-vrs-2024、fuller-vrcs-doom-2025）全部诞生于省带宽动机）；但赢家不是 VSM——桌面与主机上 PCF（小核硬件 PCF+距离淡出+TAA 抖动）始终是默认，因为它的画质上限可控、无漏光叙事负担；VSM 家族在需要「大而稳的软阴影」的场合（云影、大场景日晕、卡通渲染大柔影）持续有用，MSM/ESM 补上了画质短板。真正把「高分辨率+物理柔影」同时拿下的两条路，一条是 UE5 虚拟阴影贴图（16K 页式+屏幕空间过滤，书架 vsm_ue5_docs——名字里还有 VSM 三个字母但已是另一物种），另一条是硬件 RT 阴影（CoD MW 2020 混合管线起步，书架 codmw2020；到刺客信条：影（书架 leblanc-acshadows-rt-2025）已在开放世界规模落地）。历史的幽默在于：VSM 论文作者 Lauritzen 后来提出的 SDSM（书架 sdsm2010）改进的是 PCF/CSM 这条他预言会输的路线。</p>
+<p class="ex-sub">【「低分辨率更好」的时效】在低预算（移动端、Switch 档）这句至今成立；但注意移动端后来选择了自己的折中（CSM+小 PCF+距离淡出），VSM 在移动端的主要遗产是 ESM/MSM 的变体而非双矩本身。</p></div>
+</article>
+</section>
+<section class="chapter" id="summary">
+<header class="ch-head"><span class="ch-en">Summary</span><h2>总结</h2></header>
+<article class="para">
+<div class="zh"><p>CSM 为透视别名问题提供了解决方案。 有几个可能的配置可以获取游戏所需的视觉保真度。 PCF 和 VSM 广泛使用，应与 CSM 结合使用以减少别名。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【一句话收束】CSM 解决「贴图密度与透视采样失配」，配置空间（分割、贴合、选择、打包、滤波）就是游戏按预算与画质目标做选择题的菜单。这份 2010 年的菜单今天依然挂着，只是每道菜都换了做法：分割从手调到 SDSM 自动拟合；贴合从二选一到「紧贴+texel 对齐+旋转锁定」三件套；选择仍是 interval/map 两式；打包从图集回到数组（并走向页式虚拟化）；滤波从 PCF/VSM 之争走向「小核 PCF 保底、VSM/MSM 上软影、RT 上物理正确」的分层组合。</p>
+<p class="ex-sub">【建议的阅读动线】本文打底 → PSSM（GPU Gems 3，补分割数学，书架 psss_gpugems3）→ SDSM（自动拟合，sdsm2010）→ BF3/Frostbite 讲义（暴力 4 级联的 3A 定型，bf3-rendering-2011）→ Ryse（稳定拟合的生产级打磨，ryse-son-of-rome-2014）→ FF16 阴影技术（延迟阴影的现代全流程，ff16-shadow-2023）→ UE5 VSM 文档（页式范式转移，vsm_ue5_docs）→ RT 阴影（codmw2020、leblanc-acshadows-rt-2025）。</p>
+<p class="ex-sub">【留给读者的三个检验题】①给你 90° 视场、1920 宽、0.5–1000m 视距，4 级联怎么分才能段段近 1:1（答：几何级数，开 ratio=2000 的四次方根）；②为什么 texel 对齐救得了平移救不了旋转；③ PCF 与 VSM 各自的「不可分离/漏光」分别卡在数学的哪一步。答上来，这篇 2010 年的文章你就真正读完了。</p></div>
+</article>
+</section>
+<section class="chapter" id="refs"><header class="ch-head"><span class="ch-en">References</span><h2>引用（原文文献，已还原英文书目信息）</h2></header><ol class="ref-list"><li class="ref"><div class="ref-txt">Donnelly, W. and Lauritzen, A. Variance Shadow Maps. In I3D '06: Proceedings of the 2006 Symposium on Interactive 3D Graphics and Games. 2006. pp. 161–165. New York, NY, USA: ACM Press.</div><div class="ref-cmt">VSM 开山之作。原文中文版的「研讨会的诉讼」是 proceedings 的机翻名场面。一作 Andrew Lauritzen 后续连出 SAVSM（GPU Gems 3，书架 savsm_gpugems3）、LVSM、SDSM（书架 sdsm2010），一人串起阴影贴图滤波化十年；书架里的 MSM（peters2015/2017）、AVSM（avsm2010）都是对本文两矩表示的升级。</div></li><li class="ref"><div class="ref-txt">Lauritzen, Andrew and McCool, Michael. Layered Variance Shadow Maps. Graphics Interface 2008, May 28–30, Windsor, Ontario, Canada.</div><div class="ref-cmt">LVSM——沿光轴分层让每层内深度分布单峰化，学术上解决漏光、工程上败给贴图数量（级联数×层数），后被 MSM 的四矩方案接替。「图形界面」是 Graphics Interface 会议（加拿大，GI 2008）的直译。</div></li><li class="ref"><div class="ref-txt">Engel, Wolfgang F. Section 4. Cascaded Shadow Maps. In ShaderX5: Advanced Rendering Techniques, Wolfgang F. Engel, Ed. Charles River Media, Boston, Massachusetts. 2006. pp. 197–206.</div><div class="ref-cmt">CSM 名字的出处（「沃夫刚」是 Wolfgang 的机翻）。与 PSSM（GPU Gems 3，I3D 2006，书架 psss_gpugems3）同年同思想、各自命名，本文引用了 Engel 而未引 PSSM——从引用史看这是 MSDN 一系的视角局限；两篇合读才是 2006 年分割式阴影贴图的完整图景。</div></li></ol></section>
+  </main>
+</div>
+
+<footer class="foot">
+  <a href="index.html">← 返回收录书架</a> · 收录精读系列 · 译文与解析仅供学习交流 · 原文版权归原作者所有
+</footer>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  var topBtn = document.getElementById('top-btn');
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement;
+    var p = h.scrollTop / (h.scrollHeight - h.clientHeight || 1);
+    bar.style.width = (p * 100).toFixed(2) + '%';
+    topBtn.classList.toggle('on', h.scrollTop > 600);
+  }, {passive:true});
+  topBtn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  // 目录高亮
+  var items = Array.prototype.slice.call(document.querySelectorAll('.toc-item'));
+  var secs = items.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  function spy(){
+    var y = window.scrollY + 140, idx = 0;
+    for (var i = 0; i < secs.length; i++){ if (secs[i] && secs[i].offsetTop <= y) idx = i; }
+    items.forEach(function(a, i){ a.classList.toggle('now', i === idx); });
+  }
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+
+</script>
+</body>
+</html>

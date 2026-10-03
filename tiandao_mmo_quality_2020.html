@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>《天涯明月刀》手游高画质的技术实现</title>
+<style>
+:root{
+  --ink:#1c2126; --ink2:#4a525a; --paper:#fbfaf7; --card:#ffffff;
+  --accent:#0e6f63; --accent-soft:#eef6f4; --accent-line:#cfe4e0;
+  --amber:#8a6d1f; --amber-soft:#faf6ea;
+  --line:#e5e1d8; --code-bg:#f4f2ec;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Microsoft YaHei","PingFang SC","Noto Sans SC",-apple-system,"Segoe UI",sans-serif;
+  font-size:16px; line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+#progress{position:fixed;top:0;left:0;height:3px;width:0;background:var(--accent);z-index:99;transition:width .1s}
+.back-shelf{position:fixed;top:12px;left:14px;z-index:97;background:var(--card);color:var(--accent);
+  border:1px solid var(--line);border-radius:99px;padding:5px 14px;font-size:13px;text-decoration:none;
+  box-shadow:0 2px 10px rgba(0,0,0,.08);opacity:.92}
+.back-shelf:hover{opacity:1;background:var(--accent-soft)}
+@media print{.back-shelf{display:none}}
+#top-btn{position:fixed;right:22px;bottom:26px;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);
+  background:var(--card);color:var(--accent);font-size:18px;cursor:pointer;opacity:0;pointer-events:none;transition:.25s;z-index:98;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#top-btn.on{opacity:1;pointer-events:auto}
+
+/* ---------- 封面 ---------- */
+.cover{background:linear-gradient(160deg,#0d3b36 0%,#0e6f63 55%,#16917f 100%);color:#fff;padding:72px 24px 60px}
+.cover-inner{max-width:880px;margin:0 auto}
+.cover-kicker{font-size:13px;letter-spacing:.18em;text-transform:uppercase;opacity:.85;margin-bottom:14px}
+.cover h1{font-size:52px;margin:0 0 6px;font-weight:800;letter-spacing:.04em}
+.cover-sub{font-size:20px;opacity:.92;font-weight:300;margin-bottom:22px}
+.cover-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px}
+.chip{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:99px;
+  padding:4px 14px;font-size:13px}
+.cover-note{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:12px;
+  padding:18px 22px;font-size:15px;line-height:1.9}
+.cover-note a{color:#ffe9a8}
+.tiny{font-size:12.5px;opacity:.8}
+
+/* ---------- 布局 ---------- */
+.layout{max-width:1240px;margin:0 auto;padding:0 20px;display:flex;gap:34px;align-items:flex-start}
+#toc{position:sticky;top:0;width:250px;flex:0 0 250px;max-height:100vh;overflow-y:auto;padding:34px 0 40px;
+  font-size:14px;border-right:1px solid var(--line)}
+.toc-head{font-weight:700;color:var(--ink2);letter-spacing:.2em;font-size:12px;margin-bottom:12px}
+.toc-item{display:block;color:var(--ink2);text-decoration:none;padding:6px 12px;border-radius:8px;line-height:1.5;
+  border-left:2px solid transparent}
+.toc-item:hover{background:var(--accent-soft);color:var(--accent)}
+.toc-item.now{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+#content{flex:1;min-width:0;padding:30px 0 60px;max-width:860px}
+
+/* ---------- 章节 ---------- */
+.chapter{margin-bottom:70px}
+.ch-head{border-bottom:2px solid var(--accent);padding-bottom:10px;margin:26px 0 8px}
+.ch-en{font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.ch-head h2{margin:2px 0 0;font-size:30px;font-weight:800}
+
+.sec-h{margin:38px 0 4px;padding-left:12px;border-left:4px solid var(--accent)}
+.sec-h h3{margin:0;font-size:21px}
+.sec-h-en{font-size:12.5px;color:var(--ink2);opacity:.75}
+
+/* ---------- 段落卡 ---------- */
+.para{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 26px 18px;margin:20px 0;
+  box-shadow:0 1px 3px rgba(30,30,30,.04)}
+.zh{font-size:17px;line-height:2.05;color:var(--ink)}
+.zh p{margin:10px 0}
+.zh ul,.zh ol{margin:8px 0 8px 4px;padding-left:22px}
+.zh li{margin:5px 0}
+.ex-sub{margin:14px 0 4px!important;font-weight:700;color:var(--accent)}
+.orig{margin:0 0 12px;border:1px dashed var(--line);border-radius:10px;background:#fcfbf8}
+.orig summary{cursor:pointer;padding:7px 14px;font-size:13px;color:var(--ink2);user-select:none}
+.orig summary:hover{color:var(--accent)}
+.orig-body{padding:4px 16px 14px;font-size:14px;line-height:1.85;color:#5a626a;
+  font-family:Georgia,"Times New Roman",serif}
+.ex-card{margin-top:16px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:12px;
+  padding:14px 20px 12px;font-size:15.2px;line-height:1.95;color:#22333a}
+.ex-title{font-weight:800;color:var(--accent);font-size:14px;letter-spacing:.08em;margin-bottom:6px}
+.ex-card p{margin:8px 0}
+.ex-card ul,.ex-card ol{margin:6px 0 6px 2px;padding-left:20px}
+.ex-card li{margin:4px 0}
+.formula{font-family:"Cambria Math",Georgia,serif;text-align:center;background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:8px 12px;margin:10px auto;font-size:16px;overflow-x:auto}
+
+/* ---------- 插图 ---------- */
+.fig-plate{margin:26px 0;text-align:center}
+.fig-plate img{max-width:100%;border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 14px rgba(0,0,0,.07)}
+.fig-plate figcaption{font-size:13px;color:var(--ink2);margin-top:8px}
+
+/* ---------- 参考文献 ---------- */
+.ref-list{padding-left:0;list-style:none;counter-reset:ref}
+.ref{counter-increment:ref;background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px 20px;margin:12px 0}
+.ref-txt{font-family:Georgia,serif;font-size:14.5px;color:#3c444c}
+.ref-txt::before{content:counter(ref)" · ";font-weight:800;color:var(--accent)}
+.ref-cmt{margin-top:8px;font-size:14.6px;color:var(--ink);background:var(--amber-soft);border-left:3px solid #d9c98a;
+  padding:8px 12px;border-radius:0 8px 8px 0;line-height:1.9}
+
+.foot{text-align:center;color:var(--ink2);font-size:13px;padding:26px 16px 40px;border-top:1px solid var(--line);margin-top:30px}
+a{color:var(--accent)}
+code{background:var(--code-bg);border-radius:5px;padding:1px 6px;font-size:.92em;
+  font-family:Consolas,"Courier New",monospace}
+
+@media (max-width:1080px){
+  #toc{display:none}
+  .layout{display:block}
+  .cover h1{font-size:38px}
+}
+
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<a class="back-shelf" href="index.html" title="返回收录书架">← 收录书架</a>
+<button id="top-btn" title="回到顶部">↑</button>
+
+<header class="cover">
+  <div class="cover-inner">
+    <div class="cover-kicker">TGDC 2020 · GameLook 文字稿</div>
+    <h1>《天涯明月刀》手游高画质的技术实现</h1>
+    <div class="cover-sub">腾讯天美 · 大世界 MMO 手画的 GPU Driven 管线 · 中文精读</div>
+    <div class="cover-meta"><span class="chip">刘冰啸（腾讯互娱）</span><span class="chip">2020</span><span class="chip">TGDC 文字稿</span></div>
+    <div class="cover-note">天刀手游引擎负责人的 TGDC 分享：移动端大世界怎么把 GPU Driven 落地、画质与功耗怎么权衡。本篇中文原文+专家解析双栏——解析含技术审视与 2025 年移动端视角的对照。</div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav id="toc"><div class="toc-head">目录</div><a class="toc-item" href="#editor-note">编者按：TGDC 2020 与这场分享</a>
+<a class="toc-item" href="#opening">开场：产品定位与“超越端游”的说法</a>
+<a class="toc-item" href="#three-dimensions">三个维度：画质、帧率、功耗</a>
+<a class="toc-item" href="#tech-stack">技术栈总览与三次测试的演进</a>
+<a class="toc-item" href="#compute-foundation">GPU compute：现代渲染框架的基石</a>
+<a class="toc-item" href="#gpu-driven-lineage">前人脉络与“什么是 GPU 驱动的渲染管线”</a>
+<a class="toc-item" href="#terrain-results">地形落地：算法对比与性能数据</a>
+<a class="toc-item" href="#terrain-pipeline">GPU Driven 地形管线四步</a>
+<a class="toc-item" href="#groupshared-and-lod">共享内存优化与 LOD 体系</a>
+<a class="toc-item" href="#vegetation-and-home">横向复用：植被与家园</a>
+<a class="toc-item" href="#compute-experiments">三条实验线：实时压缩、VT 压缩、Cluster Deferred</a>
+<a class="toc-item" href="#takeaways">技术落地的三条决策</a>
+<a class="toc-item" href="#qa">Q&amp;A：阴影取舍与端游还原</a>
+<a class="toc-item" href="#source-note">信源与转载说明</a>
+<a class="toc-item" href="#refs">延伸阅读：演讲背后的技术源流</a></nav>
+  <main id="content">
+<section class="chapter" id="editor-note">
+<header class="ch-head"><span class="ch-en">Editor&#x27;s Note</span><h2>编者按：TGDC 2020 与这场分享</h2></header>
+<article class="para">
+<div class="zh"><p>GameLook报道/2020年12月7日-10日，由腾讯游戏学院举办的第四届腾讯游戏开发者大会（Tencent Game Developers Conference，简称TGDC）在线上举行。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>信源定位：这是 GameLook 于 2020 年 12 月发布的 TGDC 2020 演讲中文文字稿，不是官方讲稿。原始 PPT 与现场截图在转载中全部丢失（正文两处"我们在这幅图上可以看到""这是压缩前后的两张对比"对应的图已不存在），因此本精读中所有数字复核只能依赖文字本身与外部交叉验证，凡无法闭环的一律标注。时间点也值得钉死：2020 年 12 月，UE5 的 Nanite/Lumen 演示刚过去半年，米哈游《原神》9 月底才上线、天刀手游 10 月中旬紧随其后——这是移动端画质军备竞赛刚点火的时刻，GPU 驱动（GPU Driven）管线在移动端在线产品中几乎无先例可抄，后文"手机领域目前还没有相关技术"在当时的公开语境下基本属实。这场分享也因此成为后来国内移动端 GPU 驱动落地文章里被反复引用的源头文献之一——引用时请注意它的证据等级：负责人自述的工程叙事，数字无第三方复核。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>TGDC自2017年创办以来，一直坚持以开发者视角与需求为出发点，结合行业发展趋势，对大会内容进行不断升级和扩充，旨在为国内外游戏专业人士打造开放的交流分享平台，推动游戏行业良性发展、探索游戏更多可能。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这一段是 GameLook 的会议介绍套话，属于"整理者措辞"而非演讲内容，可直接跳过。真正有信息量的是它提醒我们文体：全文是"编者按 + 演讲实录转写"的混合体，前四段是 GameLook 写的，"刘冰啸："之后才是演讲者本人的话。本精读的解析会始终区分三种声音——演讲者的技术判断（可信度高，他是引擎负责人）、演讲者的修辞（"超越端游"这类说法要打折）、整理者的润色（公关向措辞）。TGDC 相比 GDC 的特点也在于此：分享者是一线产品团队，讲的是在线产品验证过的工程决策，学术严谨性让位于实用性，这与读 SIGGRAPH course 的姿态不同。TGDC 技术分论坛从 2019 年前后起质量陡升（腾讯把内部技术评审机制带进了讲稿筛选），读这类分享还有一个隐含用法：观察头部大厂技术决策者的表达框架——他们把什么当前提、把什么当权衡、把什么当结论，这个框架本身就是工程文化样本。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在第二日（12月8日）的活动中，来自腾讯互动娱乐《天涯明月刀》手游引擎技术负责人刘冰啸在演讲当中，总结了在《天涯明月刀》手游的开发历程中，几项关键点的技术决策和开发的经历，包括技术测试和应用，以及这些先进技术是如何落地的，为我们揭开了《天涯明月刀》手游高品质背后的秘密。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>背景补充，方便定位这场分享在行业坐标系里的位置：天刀手游基于 Unity 引擎做源码级深度定制（后文"对 Unity 进行了多线程的框架改动"可证），而天刀端游（2016 年上线）用的是腾讯自研引擎——所以这场分享讲的是"在 Unity 骨架上重建一条类主机级的渲染管线"，而不是把端游引擎搬到手机上，这一点直接决定了他们要在 Unity 的渲染框架与 GLES 时代的 API 假设上动大手术。另外注意"引擎技术负责人"这个身份：下文所有"我们认为/我觉得"是决策者视角的取舍陈述，而非单个模块的实现细节。这类分享的价值在决策链而不在代码细节——读的时候应重点抓"为什么放弃"的部分，cluster deferred（集群化延迟着色）与 Virtual Texture 压缩两条放弃记录，恰恰是全文最珍贵的段落，比成功案例更能反映 2020 年移动端的真实约束边界。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>以下是演讲实录：</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>编辑处理说明。本精读按"审稿姿态"处理这份转写稿，规则先行声明：其一，ZH 栏照录原文，一字不改；仅清理两类纯提取伪影——网页转写产生的词间多余空格（如"mips 里""依次类推 完成"），以及一处跨词断字"buff er"还原为"buffer"（见家园渲染一段），其余所有口误、别字、费解句均原样保留并在解析中逐处标注。其二，明显误转写处给出最佳还原候选，拿不准的标"原词待核"，全文共四处："机动车Fusion"疑为育碧 Trials 系列、"IMD"疑为 AMD、"渲染力度"疑为"渲染粒度"、"GBuffer搁置"疑为"G-Buffer 设置"。其三，所有数字（顶点数、毫秒、百分比、贴图尺寸、灯数）均在解析中复核，能复算的给算式，不能闭环的明说原文数字有缺口。读者可以把每一段的解析当成"同行评审意见"来读。</p></div>
+</article>
+</section>
+<section class="chapter" id="opening">
+<header class="ch-head"><span class="ch-en">Opening &amp; Positioning</span><h2>开场：产品定位与“超越端游”的说法</h2></header>
+<article class="para">
+<div class="zh"><p>刘冰啸：大家好，我是刘冰啸，我来自腾讯《天涯明月刀》手游项目组，目前在担任手游引擎的技术负责人。这次演讲将给大家带来《天涯明月刀》手游的开发历程，包括其中几项关键点的技术决策和开发的经历。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>开场白本身无信息量，但"开发历程 + 关键点的技术决策"预告了全篇结构：按三次技术测试的时间线推进（多线程框架 → Vulkan → GPU 驱动 + 光照升级），再展开 GPU 驱动地形这一个专题，最后以三条落地经验收尾。这是典型的一线负责人叙事——先讲约束（移动端功耗/带宽），再讲在约束下做了什么、放弃了什么。对引擎开发者的阅读建议：把这篇当 2020 年移动端技术选型的一手样本来读，它记录的不是"怎么做 GPU 驱动"（那部分去读育碧 SIGGRAPH 2015 的原文更系统），而是"GPU 驱动在 2020 年的移动硬件与 API 支持下被迫长成了什么形状"——每处与 PC 方案的偏差（无 multi-draw、无 bindless、readback 回 CPU）都是当时移动平台的真实约束快照，这是任何教科书里都没有的信息。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>《天涯明月刀》手游是一款基于真实的物理渲染的国风MMORPG游戏，它延续了天刀端游的画面表现力，在手游平台性能受限的环境下，达到了这样的效果，甚至超越了端游的表现。这可不是简单的画面移植，背后的一切是怎么发生的呢？我作为天刀手游引擎技术负责人，将给大家带来背后的开发历程。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键定位段】"PBR + 大世界 MMO + 移动端"这个组合在 2020 年是稀缺品：彼时移动端主流仍是风格化光照的前向管线（同期上线的《原神》走的就是前向 + 烘焙全局光照路线），写实向 PBR 大世界几乎没有竞品。"甚至超越了端游"要正确理解：端游 2016 年上线，其管线是上一代 PBR（无物理光单位、LDR 思维的 tonemap），手游版的优势集中在光照单位体系、自动曝光与 HDR 处理（后文 Q&amp;A 自己承认了这一点：暗光表现优于端游），而不是几何密度或阴影质量——大世界实时阴影恰恰被砍掉了，用光照贴图（lightmap）烘焙替代。所以"超越"是光照管理维度上的超越，不是全面超越。另外"不是简单的画面移植"这句是准确的：引擎从端游自研换成了 Unity 深度定制，美术资产语义与管线设计是重新搭的，这个决策让团队拿到了移动端工具链生态，代价是渲染层几乎全部重写。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我们将要看一下天刀手游的先进技术，是如何在天刀里面落地的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>过渡句，但"落地"是全篇题眼，值得展开一句：这场分享反复强调的判断标准不是"技术先进"，而是"能不能在在线产品里带着功耗预算稳定跑"。GPU 驱动管线在 PC/主机上 2015 年（育碧）就已成熟，到 2020 年整整五年没有移动端在线产品公开落地，核心障碍从来不是算法，而是移动 GPU 驱动对 indirect draw、bindless、异步计算的支持残缺——后面会看到天刀几乎每个模块都在跟这三样搏斗。"落地"导向也是 TGDC 与学术会议的分野：演讲者反复给出的是"我们试了、放弃了、原因是什么"的记录，这类负结果在论文里几乎不可能发表，却是工程团队最值钱的信息。"落地"这个词也可以给一个可操作的判据，供读者衡量任何"新技术落地"的宣传：功能是否在在线产品的默认配置里开启、是否覆盖到中端主流机型档位（而不是只在旗舰演示机上跑）、是否不依赖降级开关兜底——三条全过才算真落地，天刀的 GPU 驱动地形满足全部三条，这是它比很多 PPT 先进技术更有分量的原因。</p></div>
+</article>
+</section>
+<section class="chapter" id="three-dimensions">
+<header class="ch-head"><span class="ch-en">Three Dimensions: Quality, Framerate, Power</span><h2>三个维度：画质、帧率、功耗</h2></header>
+<article class="para">
+<div class="zh"><p>我们去考虑手游引擎开发的几个重要要素：首先就是画质，画质我们需要进行一些选择，是希望它突出远景，还是希望它突出近景；画面的表现上是优先于室内，还是优先于室外；整个画面效果是鲜艳，还是更加自然；在光与影之间是做取舍，是优先光线的表达，还是优先影子的效果。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段是全篇的"画质预算学"总纲：远景/近景、室内/室外、鲜艳/自然、光/影，四组二元选择。表面上是美术取向问题，实质是移动端带宽与功耗约束下的渲染预算分配——每组选择背后对应的是完全不同的资源倾斜：远景优先意味着地形 LOD 与大气散射（atmospheric scattering）管线要投资，近景优先则是材质细节与顶点密度；光影取舍直接决定要不要为实时阴影贴图（shadow map）付带宽。从后文反推天刀的实际答卷：远景优先（大世界卖远景、Q&amp;A 确认）、室外优先（MMO 主战场）、自然取向、光优先于影（大世界阴影用 lightmap 烘焙，见 Q&amp;A 段）。这套"选择题框架"在 2025 年依然是移动端项目的第一张表：UE5 移动端的可扩展性分级（scalability）本质上是把这些选择参数化；而"光与影"的取舍直到今天也没有在手机上被硬件解决——虚幻阴影图（VSM）在移动端默认关闭、硬件光追阴影在骁龙 8 Elite / 天玑 9400 这个量级的 SoC 上仍是演示级特性，离 30fps 大世界全场景实时阴影还有代差。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第二是帧率，对于天刀手游这种，属于强交互的MMORPG的动作类游戏，我们需要一个高而且却稳定的帧率。通常在PC开发的时候，我们只需要顾虑到两个方面，先达成画质的效果表现之后，通过优化来不断地提高游戏的帧率；我们帧率达成一个目标点之后，再想办法引入更好的画质的表现。两者产生不停的迭代，来提升整体画面的效果和优化表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>演讲者把 PC 时代归纳为"画质 ↔ 帧率"的二维迭代，这个归纳大体成立但漏了一层：PC 不是没有功耗问题，而是功耗问题被散热与外接电源外置化了（风扇转速、功耗墙），消费者感知弱，所以它退化为工程约束而非产品约束。手机上"高而稳定"四个字才是真难点：高帧率不难（降画质就行），稳定难——移动 SoC 的热节流（thermal throttling）会在持续负载几十秒到几分钟后降频，帧率从 60 掉到 40 再掉到 30 的"崩帧"体验比一直 30 更糟。动作类 MMO 对帧率稳定还有额外的输入延迟与命中判定诉求（轻功、连招的可读性）。值得注意的是当时行业背景：2020 年高刷屏（90/120Hz）刚在中高端安卓普及，iPhone 还是 60Hz，天刀高端档跑 60fps、中低端 30fps 的分档策略正是从这一代产品开始成为国产大厂标配。帧时间视角换算一下：60fps 预算 16.6ms，30fps 预算 33.3ms，后文"地形单模块 2.9ms"这类数字要放在这两个预算里掂量。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>而对于手游来说，我们引入了第三个维度需要考虑的问题，那就是功耗。功耗对于手机而言，是非常重要的一个维度，它不仅会产生发热，而且还会影响到玩家游玩的单次时间。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"功耗影响单次游玩时间"这句是全文最有产品头脑的一句——功耗在这里不是技术指标而是留存/时长指标：设备发烫 → 玩家被迫放下手机 → 单次时长缩短 → 商业模型受损。移动端功耗的物理机制值得每个引擎开发者背下来：SoC 有温度墙，触墙后降频降亮度，性能曲线不是静态的而是热耦合的；动态功耗近似与频率、电压平方成正比（P ≈ C·V²·f），而电压随频率上调，所以"跑满频"的能效极差，同样 30fps，两个中频核跑比一个大核满频省电得多——这直接解释了后文"把工作从主线程剥离出去"的动机。2025 年回看这条约束依然成立甚至更紧：旗舰 SoC（3nm 工艺）峰值能效大幅改善，但《原神》级别的持续负载仍会让 iPhone 降亮度、安卓旗舰掉帧，各厂不得不做"功耗自适应"（温度响应的动态分辨率与帧率档位），等于把 2020 年天刀手工做的三维平衡自动化了。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在这三个维度上，对其中任何一个维度的增加，都会影响到其他另外两个维度的表达。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>一句总结性的话，但值得翻译成工程语言：这是固定功耗预算下的帕累托前沿（Pareto frontier）问题——不存在三项同时变好的免费午餐，只存在沿前沿的滑动。而对移动 GPU 来说，前沿上最敏感的变量是带宽（bandwidth）：DRAM 访问的能耗比片上 SRAM 高一个数量级以上，移动 GPU 的整体架构（分块渲染 tile-based rendering 就是为了把帧缓冲留在片上）都围绕省带宽设计。抓住这一点，全篇后续所有技术选择就都顺理成章了：Hi-Z 遮挡剔除省的是顶点与过绘制（overdraw）的带宽、GPU 驱动省的是 CPU 到 GPU 的命令与参数上传、贴图压缩省的是纹理采样带宽与内存、cluster deferred 被否决是因为 G-Buffer 带宽（这是被放弃的技术同样死在带宽上）。可以说这场分享的暗线就是"2020 年移动端渲染 = 带宽管理"，而这暗线到 2025 年也没有变，只是带宽预算宽裕了些、手段多了 ASTC HDR、AFBC（Arm 的帧缓冲压缩）与更成熟的 subpass 工具而已。</p></div>
+</article>
+</section>
+<section class="chapter" id="tech-stack">
+<header class="ch-head"><span class="ch-en">Tech Stack &amp; Three Playtests</span><h2>技术栈总览与三次测试的演进</h2></header>
+<article class="para">
+<div class="zh"><p>对于天刀手游的优化来说，我们开发引擎组采用了各种各样的技术栈，从而获取更好的优化效果。我们对多线程渲染引擎进行优化，把大部分可以并行的工作，比如动画、布料，都放到其他的线程中去运行。我们使用了ISPC来自动生成NeonSIMD的代码，这部分代码可以更好地提升CPU的执行效率。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>三条 CPU 侧手段逐条拆解。其一，渲染线程拆分：2018-2019 年的 Unity 还远没有今天的 job system 成熟度，动画、布料（大世界 MMO 里布料模拟是 CPU 大户，角色披风、裙摆都要跑）迁出主线程是源码级改造。其二，ISPC（Intel SPMD Program Compiler）生成 NEON 指令：用 SPMD 写法让编译器自动向量化到 ARM NEON，替代手写 intrinsics——值得指出的是 ISPC 官方主线当时还没有正式的 NEON 后端（那是几年后的事），天刀用的应是内部移植或社区分支，这侧面说明头部大厂引擎组的工具链改造深度。对照 2025 年：Unity Burst/DOTS、UE 的 MassEntity 与各家的 SOA SIMD 化，走的都是同一条路——SIMD 宽度越来越宽，手写向量化不可能维护，编译器辅助 SPMD 是唯一可扩展解法。其三，这段话也悄悄确认了优化的第一落点是 CPU：2020 年大世界 MMO 在中端机上的首要瓶颈经常不是 GPU 而是 CPU 提交与逻辑，这与后来（2022-2024）GPU 成为瓶颈、CPU 反而冗余的硬件演进曲线正好相反。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>同样在GPU和CPU的遮挡剔除中，我们使用了不同粒度的遮挡剔除算法，首先启用了Vulkan API，然后通过Vulkan API来对GPU的内存，进行更好的粒度上的管理。我们还实现了GPU driven的渲染管线，用compute进行辅助优化各项其他的渲染技术。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这是全篇技术总纲的三行浓缩：混合粒度剔除（CPU 侧对象级 object level + GPU 侧网格簇/地形块级）、Vulkan 显存管理、GPU 驱动管线 + 计算着色器（compute shader）辅助。展开讲 API 选择：GLES 的显存与资源管理对应用完全黑盒（驱动内部装箱），CPU 侧剔除的结构化缓冲（structured buffer）用起来别扭；Vulkan 把内存分配（VkDeviceMemory、自定义分配器）交给应用，才能做到"粒度上的管理"——把剔除流、间接绘制参数（indirect draw argument）、贴图页缓存放进可控的堆里，减少碎片与驱动 surprises。对照 DX12 开发者的心智模型：这相当于堆（heap）/驻留（residency）管理的同构问题。还值得注意的是"GPU 和 CPU 的遮挡剔除"并列出现——后文会看到最终形态是 GPU 主导 Hi-Z 剔除 + 家园场景 CPU 读回（readback）混合，这句总纲其实已经预告了两种粒度并存的设计。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在画面上，我们使用了PBR的材质，以及真实的物理单位的lighting，从而获得更好的、真实的 HDR的画面效果。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"物理光单位"（photometric units：勒克斯 lux、坎德拉 cd、尼特 nit）+ PBR + HDR 渲染目标，这三件套在 2020 年的移动端上做全有实际代价：HDR 意味着至少 R11G11B10 或 RGBA16F 的渲染目标（带宽翻倍于 LDR 的 RGBA8），线性空间的中间缓冲全链路一致性要重造，tonemap 前的动态范围管理变成真问题——真实世界的照度从星光下的 0.001 lux 到正午直射的 10 万 lux 跨五个数量级，固定曝光必然丢暗部或亮部细节。这就埋下了第三次测试"引入自动曝光"的伏笔（演讲者后文自己把因果讲清楚了）。顺带一个时代注脚：UE5 在 2022 年才把物理光单位设为默认，而天刀 2018-2019 年的测试期就在移动端押注这套体系，属于相当激进的选择——代价是前期大量"不同光照环境下颜色细节丢失"的返工（见后文），收益是端游资产语义平移时有一致的物理基准，夜景、室内、云下等场景不用逐个手调强度。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>随着手游的每次测试，我们都会加入一个重要的优化或者功能。在第一次测试中，我们对Unity进行了多线程的框架改动，把渲染线程和提交线程从主线程中剥离出来，因为在手游的开发环境里，一个主要线程的持续工作会带来手机芯片的功率提升，而它的功率提升则会带来更多的发热。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>第一次测试 = 线程架构改造，而且给的理由是功耗而非帧率——这个视角非常移动端：单线程持续满载意味着一个大核长时间顶在高频高压区，热密度集中在 SoC 一角，触发热节流；把渲染线程、提交线程（submit thread，负责把命令缓冲递给驱动/内核）剥离后，负载摊到多个中频核，总能耗未必降多少，但热密度下降、能效点更优。这是 big.LITTLE 架构（2013 年起，2020 年主流为 4 大核 + 4 小核，如骁龙 865 的 1+3+4）下每个移动引擎都要过的关。对照标准 Unity 当年的三线程模型（main/render/job）与 UE 的 game/render/RHI 三线程，天刀等于是自己把 Unity 改到业界标准的线程拓扑。一个补充判断：把"提交线程"单独列出来说明他们连驱动调用都隔离了——这为后来 Vulkan 的命令缓冲多线程录制铺了路，架构演进是连续的，不是跳跃的。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在第二测试中，我们引入了Vulkan API，Vulkan API相对于GLES而言，有着更好的更轻量级的调用，经过测试，我们可以做到在提交线程上，获得30%的CPU的效率提升。因为Vulkan API是更加自由的开发方式，你可以在其中进行各种各样的优化，例如我们对一些比较重的Vulkan API操作，例如Descriptor Set的绑定、layout的绑定，我们都可以采用一些Cache的方式来去做，这么灵活的Vulkan API，使得我们在做开发的时候可以获得更好的解法。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【数据段】"第二测试"疑为"第二次测试"漏字（后文"第三测试"同），照录。"提交线程上 30% 的 CPU 效率提升"——这个数字可信且来源可解释：GLES 每次状态变更走驱动的全局状态机校验（大量隐式跟踪与同步），Vulkan 把状态打包成不可变的管线对象与描述符集（descriptor set），绑定成本显式化、可预测、可缓存。演讲者举的两个例子都很内行：descriptor set 绑定与 pipeline layout 绑定的 cache 化，正是 Vulkan 性能工程的标准课业——按 set 的更新频率分层设计 layout（高频参数 vs 常驻资源）、预烘焙 descriptor set 池、渲染 pass 之间复用兼容的 layout，可以把提交线程的大头从"绑定"变成"真正的录制"。DX12 开发者可以完全同构地映射到 root signature 分层与 descriptor heap 管理。需要泼的冷水：30% 是提交线程的相对提升，不是整机帧时间；且 Vulkan 的自由是有代价的——同步、内存、管线缓存全部自己负责，2020 年安卓厂商驱动质量参差（Adreno 6xx 与 Mali G7x 的 Vulkan 成熟度差距明显），天刀这类团队等于替驱动厂商做了大量兜底工程。到 2025 年，安卓新设备 GLES 支持已被弱化，Vulkan 成为事实标准（Android 15 起 Vulkan 要求更严），这条路被证明走对了。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在第三测试中，我们引入了GPU Driven的技术，通过GPU Driven技术，我们可以把大部分CPU上的工作，转移到GPU上去运行。这不仅提升了GPU的效率，也减少了从GPU到CPU之间的各种传递的带宽。我们将这项技术里面用在了游戏内部的地形、草和植被上，包括在家园里面也运用了这些效果。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】GPU 驱动的收益结构值得精确定性：主要收益是 CPU——draw call 的组装、可见性判断、参数填充不再占 CPU 时间，场景复杂度与 CPU 负载解耦；GPU 侧的收益来自更细粒度的剔除（过绘制与顶点浪费下降）。有一处口述不精确要指出：原文"减少了从GPU到CPU之间的各种传递的带宽"方向说反了——省掉的主要是 CPU 往 GPU 的命令与参数上传，以及"GPU 算完可见性 → CPU 读回 → CPU 组织绘制"这个回环的同步等待；纯粹的 GPU 闭环（见后文"理想情况下一个 draw call 画完场景"）恰恰是把 GPU 到 CPU 的传递消灭掉。应用面的选择也很诚实：地形、草、植被、家园——全是"重复结构密集 + 数据规则"的模块；角色、特效、UI 没碰，因为那些模块 draw 少但状态复杂，GPU 驱动没有收益。"我们将这项技术里面用在了"这句中"里面"疑为口误冗字，照录。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在第三次测试里面，我们修改并提升了游戏整体的光照表达，引入了自动曝光，提升了Tonemapping的效果，解决了由于真实物理单位引入之后，在不同的光照环境下，lighting体现的一些细节颜色丢失的问题；我们重新对sky lighting进行了定义，使得整个场景的室外表现更加丰富并且具有对比度。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这段补完了光照体系拼图，因果链讲得很清楚：物理光单位引入 → 场景照度动态范围横跨数个数量级 → 固定曝光下暗部/亮部细节丢失 → 必须上自动曝光（auto exposure，AE）与更好的 tonemap。移动端 AE 的工程细节：直方图或中心加权平均测光 → 目标亮度 → EV 补偿 → 曝光平滑（时间常数防闪烁），UE 的 auto exposure 移动端默认只有中心加权（直方图模式移动端长期受限），天刀用计算着色器做直方图统计正好呼应后文"Bloom、高斯模糊、自动曝光这类区域 filter 都可以用共享内存优化"——AE 的直方图归约就是 LDS（共享内存）的教科书应用。"重新定义 sky lighting"原文没展开，按上下文推测是把天空漫反射（sky diffuse，天空可见性/天空遮挡 sky occlusion 采样）与太阳直射分开建模、并把天空光从常数环境色升级为带方向性与遮挡的贡献，否则解释不了"室外表现更丰富且对比度提升"——此为推测性还原，原词待核。这与后来 UE5 移动端 Sky Atmosphere + 天空光照探针的思路是同方向的。</p></div>
+</article>
+</section>
+<section class="chapter" id="compute-foundation">
+<header class="ch-head"><span class="ch-en">Why GPU Compute</span><h2>GPU compute：现代渲染框架的基石</h2></header>
+<article class="para">
+<div class="zh"><p>时间有限，在这里我主要讲一下，在第三次测试中我们采用GPU Driven技术，来对渲染技术进行优化的一些要点。在开发的过程中，我们经历了多线程的优化，同时也发现了在做手机平台的一个优化的甜区。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>"甜区"（sweet spot）这个词选得准：不是理论最优，而是投入产出比最高的区间——多线程化（把 CPU 摊平）+ 计算着色器（把工作下沉到 GPU）的组合拳。这段也标定了下文的范围声明：只讲第三次测试的 GPU 驱动优化要点，意味着 Vulkan 迁移细节、光照体系都只是一笔带过，读者若要复原完整管线，需要把这段与上一节的三次测试叙事拼起来。顺带指出演讲结构上的一点遗憾：全程没有给出测试的设备分档（哪档机型跑什么画质、什么帧率），所以后文所有性能数字都缺"在什么档位上"的上下文——对演讲这是正常省略，对想要抄作业的团队这是最大的信息缺口。"甜区"的量化画像也值得补上：2020 年的中端安卓机（骁龙 7 系、天玑 8 级别）CPU 是 2 个 A73 级大核 + 6 个小核的形态、GPU 带宽只有旗舰的三到四成，这种机器上省 10 毫秒 CPU 与省 1 毫秒 GPU 完全不是一个量级的收益——后文"CPU 两线程各省 5ms"的性能结论正是甜区存在的实证。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>其实手机的多核，要比在端游时代开发的时候，更早进入了多核时代，现在安卓手机很多都是四加四的多核架构，这有点像我们能够在上一代的主机平台上看到的形式，例如xbox360或者ps3，在这些架构下，都能够让开发者更多地使用这些辅助的计算单元，来提升你的计算效率。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这个历史类比大体成立但值得精确化：Xbox 360 是三核 Xenon + VMX128 向量单元，PS3 是 Cell 的 1 个 PPE + 6 个可用 SPE——那一代主机逼着开发者学会"主线程 + 辅助计算单元"的异构编程，SPE 的本地存储（local store）编程模型尤其接近后来 GPU 计算的思维方式（显式数据搬进搬出、DMA、同步全靠自己）。手机确实更早进入多核：big.LITTLE 2013 年就有了（Cortex-A7+A15），而桌面游戏普遍吃满多核要到 2015 年之后。2020 年安卓主流 4+4（如骁龙 865 的 Kryo 585：1 超大核+3 大核+4 小核，演讲者笼统说四加四），A55 小核的任务就是接走后台线程与低优先级工作。这个类比的深层含义是：主机界积累的异构并行经验（任务系统、job 图、依赖追踪）可以直接移植到移动端——天刀团队里应该有相当比例的主机/端游背景程序员，这从他们后面熟练使用 GCN 术语（LDS）也能看出来。到 2025 年这个拓扑还在演化：天玑 9400 走全大核路线（超大核+大核+中核），骁龙 8 Elite 用自研 Oryon 全大核，"把工作摊到合适的核"从 4+4 简单二分变成了三级能效曲线上的连续问题。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>对于引擎组来讲，我们采用了两个方向：第一个方向是尽可能地剥离主线程上的计算，通过dispatch到小核上、dispatch到其他线程上，来提升它的计算效率；第二个方向就是把计算转入GPU compute。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>把"计算往哪里搬"当成一等架构决策，只有两个方向：横向（线程/核）与纵向（GPU）。判断标准也值得总结成清单：任务是否批量同构（是 → 计算着色器）、是否有大量分支与状态依赖（是 → 留 CPU）、是否每帧数据依赖链长（长 → 线程池 job 图，不适合 GPU kernel 的调度粒度）、输入输出是否已是 GPU 资源（是 → GPU 上闭环，避免 PCIe/总线上传下载）。天刀的实际分工印证了这个框架：剔除、间接绘制参数生成、贴图压缩、直方图统计这些"批量同构 + 数据本来就在 GPU"的工作全下沉；动画、布料这种有状态、有依赖的留在了 CPU 线程。注意原文用"dispatch"这个词指 CPU 侧的任务派发（与 GPU 的 vkCmdDispatch 不是一回事），中英混用是转写稿的常态，按上下文理解即可。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>为什么说GPU compute如此重要呢？首先我认为它是现代渲染框架的一个基石，大家都了解除了GPU进行光栅化处理的部分之外，compute能够完成大量的GPU的渲染流程上的操作，包括计算光照、计算材质等等；另外一个值得注意的是，compute的渲染语言其实完全能和GPU的硬件对应起来，例如里面的Local Data Storage机制、ThreadGroup和Thread利用率的概念，这两个都能很好地在compute语言上表现出来。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】这段是演讲者硬件素养的最高展示，两个点都值得展开。"计算着色器是基石"：现代渲染器里光栅化只是流水线的一小段，剔除（Hi-Z/簇剔除）、全局光照（GI）的探针更新与辐照度（irradiance）积分、粒子模拟、皮肤/布料解算、后处理（Bloom、tonemap、自动曝光）、贴图流式与压缩——全是计算着色器的地盘，DX12 的 mesh amplification 与 UE5 的 Nanite 把这一趋势推到极致（Nanite 的整个几何管线除最终光栅化外全是计算着色器）。"语言与硬件对应"：演讲者直接用了 AMD GCN 的术语 LDS（Local Data Storage，本地数据存储）——这就是 HLSL 的 groupshared memory / Vulkan GLSL 的 shared memory，每个计算单元（CU）一块 32-64KB 的片上 SRAM；ThreadGroup（线程组/workgroup）映射到 CU 上执行，wavefront（GCN 是 64 线程一个 wave）是硬件的真实执行宽度，所谓"Thread 利用率"就是 wave 占用率（occupancy）与活动通道占比（SIMT 分支发散时部分通道空转）。在移动端，Adreno 的 wave 是可变的（全宽 128）、Mali 是 16 线程的 quad 体系，但概念同构。能按 LDS/工作组/占用率来写计算着色器，意味着作者不是"把 CPU 代码翻译成 compute"而是按硬件执行模型设计算法——这直接解释了后文单 dispatch 多级 mip 归约这种深度优化的出现。顺带一句：Adreno 与 AMD 的血缘（Adreno 源自 ATI Imageon）让 GCN 术语在移动团队里流传很自然。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第二点是因为使用compute能够发挥Vulkan更大的潜力。因为Vulkan本身可以对GPU的同步行为做出非常好的控制，而compute作为一个独立的单元，我们可以把compute计算，很好的和GPU的其他计算并行起来，例如compute可以和一个带宽优先的，比如shadow pass，进行并行；另外compute是一个单独的Queue，我们可以对比vs和ps的整套pipeline来说，它是一个非常简化的单元，是非常容易到处去摆放的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】这段讲异步计算（async compute）的工程直觉，信息密度很高。第一，同步控制：Vulkan 的屏障（barrier）、事件、信号量把"谁等谁、等多细"交给应用，而 GLES 只有粗粒度的全局内存屏障——计算着色器作为独立单元才能被精确地插入流水线空隙。第二，与 shadow pass 并行的例子选得专业：级联阴影贴图（CSM）的深度 pass 是带宽优先型工作（大量简单的深度写入，ALU 大量空闲），同时跑一个 ALU 密集的计算着色器（比如剔除或统计）能填掉图形管线的气泡——这是 PC 上 async compute 的经典论证。第三，"单独的 Queue、比 vs/ps 整套管线简化、容易摆放"：计算队列不需要顶点/几何/光栅/输出合并全套状态，插进时间线的自由度高。需要补充移动端的现实：手机 GPU 的图形与计算通常共享同一组统一着色器阵列和同一频率/功率域，async compute 的收益不如桌面独立队列明显，更多是"填气泡"级别的重叠（Adreno 支持两个硬件队列）；天刀这里讲的更多是"计算与图形流水线在时间上交错"的软性并行，收益真实但量级要保守估计。原文"很好的和GPU"应为"很好地"，照录。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第三点采用compute的话，可以给GPU Driven和Bindless打开更广阔的优化空间，甚至可以使用Async compute方式。来更进一步的并行compute和GPU的单元。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>这句把三件套的关系点破了：GPU 驱动、bindless（无绑定/描述符索引寻址）、异步计算。依赖关系是单向的——GPU 驱动需要计算着色器来写间接绘制参数（GPU 上生成的 draw 参数必须由 GPU 写、GPU 读，CPU 碰不着）；bindless 让一次绘制内的每个实例能按索引访问任意贴图与常量（否则一个 draw 只能绑一套资源，实例多了就要拆 draw）；异步计算则是时间维度的重叠。三者齐备才是完整形态的 GPU 驱动管线（2015 年育碧的论文就是这套）。而 2020 年移动端的残酷现实是三缺二：计算着色器有，bindless 与 multi-draw 没有——后文植被与家园两节会看到这个残缺如何逼出两套妥协设计，这是全篇最有"移动端特色"的部分。DX12 对照：桌面侧 descriptor indexing、ExecuteIndirect 批量执行在 2016-2018 年就齐了，这正是主机与移动管线分野的硬件根源。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>对于天刀手游来说，打开compute的关键突破点就是GPU Driven的地形系统。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>单句过渡，但选择地形的理由值得替演讲者说透：地形是所有模块里最适合当 GPU 驱动第一个落点的——数据规则（高度场/规则网格，天然可分块）、LOD 结构天然（距离分级）、无动画状态（patch 集合每帧独立重算没有时序依赖）、且与虚拟纹理（virtual texture）管线强耦合（材质分页同样受益于剔除结果）。换句话说：算法风险低、收益上限高、失败可回退（保留 CPU clipmap 兜底），是理想的"尖兵项目"。后文总结里"让有比较好技术功底的同事完成了 GPU Driven 地形的突破"也印证了这是集中优势兵力打的歼灭战，而不是撒胡椒面。这个"先打一个模块建框架，再横向复用"的路径，对任何想在移动端引入 GPU 驱动的团队都是可直接借鉴的策略。</p></div>
+</article>
+</section>
+<section class="chapter" id="gpu-driven-lineage">
+<header class="ch-head"><span class="ch-en">Lineage &amp; Definition</span><h2>前人脉络与“什么是 GPU 驱动的渲染管线”</h2></header>
+<article class="para">
+<div class="zh"><p>我们来看一下使用compute作为GPU Driven的一些研究方向。在最近的几年里，GPU Driven其实是一个相对来说比较热门的研发方向，在SIGGRAPH 15上，育碧有一篇文章《GPU Driven的渲染管线》（GPU-Driven rendering pipelines），主要是讲《刺客信条：大革命》的开发。在2016年的GDC上，EA的寒霜引擎也提到了GPU Driven的pipeline，2018年FarCry5也实现了相关的功能，2019年育碧的机动车Fusion 也完成了相关的一些功能。但是在手机的领域上目前还没有相关技术，能够真正的在在线产品中体现出来。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【考据段，逐条核对与纠错】这条时间线基本准确，只有一处需要纠：其一，SIGGRAPH 2015 Advances in Real-Time Rendering course 上育碧的 GPU-Driven Rendering Pipelines（《刺客信条：大革命》）确实奠基，光栅阶段的全场景剔除 + indirect draw 蓝图出自此文。其二，"2016 GDC 寒霜"对应的应是 DICE 的 Graham Wihlidal《Optimizing the Graphics Pipeline with Compute》（GDC 2016），讲用计算着色器重构剔除与几何准备阶段，寒霜引擎出品，演讲者记忆无误。其三，Far Cry 5（2018）的植被与地形渲染确实实现了 GPU 剔除。其四，需要纠错：<strong>"2019年育碧的机动车Fusion"疑为转写或听写错误</strong>——育碧旗下去掉摩托车题材的只有 RedLynx 的 Trials 系列（Trials Fusion 为 2014 年、Trials Rising 为 2019 年 2 月上市），"机动车"很可能是整理者对 Trials（摩托车特技游戏）的意译，而 2019 年对应的作品应是 Trials Rising；也不排除演讲者现场把两个名字说串，原词待核。其五，"手机领域此前没有在线产品落地"在公开语境下属实：2015-2019 年的移动 GPU 驱动连单条 indirect draw 的性能都常有问题，更不用说整套闭环。这句话也让这场分享的历史定位清楚了：公开渠道里第一批把 GPU 驱动管线跑进移动端在线产品的工程记录之一（同年同代的还有网易、米哈游的非公开探索，但成文可查的极少）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>那我们讲一下什么是GPU驱动的渲染管线？</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>定义段的引子。值得预告的是接下来两条定义——"GPU 掌握渲染控制"与"无 CPU/GPU 往返"——分别对应 GPU 驱动的两个本质收益：控制粒度（剔除能下探到簇级）与数据流单向性（可见性结果不出 GPU）。这两条恰好也是育碧 2015 论文的立论框架，天刀的转述忠实于源头。对读者的提醒：判断一个管线是不是"真 GPU 驱动"，就用这两条标准去量——很多产品宣传的"GPU 剔除"实际是 GPU 算完读回 CPU 再组织 draw（天刀自己的家园方案就是这种，后文他们自己也不称之为完整 GPU 驱动），控制粒度有了但数据流仍是双向的，收益要打对折。判断时还有第三条隐含标准值得加上：CPU 是否仍在为场景组织付出与场景规模成正比的每帧成本（哪怕剔除本身在 GPU 上跑）——只要 CPU 还要逐对象提交或逐类型组装，规模上限就还锁在 CPU 手里；三条全过才是教科书意义的 GPU 驱动。市场上把"GPU 剔除"当 GPU 驱动营销词的用法不少，用这几条一量就现形。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>首先GPU掌握实际的渲染控制。GPU掌握渲染控制可以提供更细致的渲染力度，例如在做渲染剔除的时候，CPU只能控制在object level，使用Object Bounding帮助下做剔除；在GPU这个层面上，我们可以做到更进一步的控制，可以在Mesh cluster级别上，通过切分Mesh来获得更好的力度控制。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键定义段，含一处疑似误转写】先纠错：两处"渲染力度"疑为"渲染粒度"（granularity）之误——与后文"不同粒度的遮挡剔除算法""粒度上的管理"用词呼应，granularity 才是与 object level/cluster level 对应的概念，此处按"粒度"理解，原词照录。内容拆解：CPU 剔除以对象为单位（包围盒 vs 视锥/遮挡体），一个对象要么全画要么全不画；GPU 剔除把网格切成簇（cluster/meshlet），每个簇有自己的包围锥与包围盒，逐簇过剔除测试——一个横跨屏幕边缘的大物件，CPU 只能整个保留，GPU 可以只画可见的几簇。这正是 UE5 Nanite 与 mesh shader 的核心思想：Nanite 把几何切成 128 顶点的 cluster 再组织成 cluster 层级树做剔除与 LOD，2020 年天刀在无 mesh shader 的移动硬件上用计算着色器 + 间接绘制手工模拟了同构的粒度控制，这在当时移动端是非常超前的结构选择。代价也要点明：切簇需要离线预处理（网格切分、每簇元数据），索引缓冲与顶点组织变成簇粒度，内存布局更复杂；小物件切簇反而增加元数据开销，所以这套粒度只对地形块、植被这类大批量规则几何划算。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>它的另外一个好处是，它不需要GPU和CPU之间的数据来回传递，在理想情况下，GPU Driven甚至都可以使用一个Drawcall 来绘制完整个场景。当然了这个需要compute shader，以及indirect drawing相关API的支持。这些在Vulkan 1.0的情况下，我们是都可以拿到相关的支持的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段，含 API 事实核查】"一个 draw call 画完整场景"是 GPU 驱动的招牌图景：GPU 上跑剔除 → 幸存实例紧致写入间接绘制参数缓冲 → 一条间接绘制指令按 GPU 生成的参数展开全部实例，全程 CPU 只发一条命令。数据流单向化消灭的是"GPU 剔除 → CPU 读回 → CPU 填 draw 参数 → 再提交"的回环，那个回环每帧多一整次 GPU→CPU 同步（fence 等待，动辄吃掉几毫秒帧预算），也是主机游戏从 PS3/Xbox 360 时代就开始斗争的对象。API 事实核查：演讲者说"这些在 Vulkan 1.0 都可以拿到支持"——需要精确化：Vulkan 1.0 核心确实有 vkCmdDrawIndexedIndirect（计算着色器自不必说），但 1.0 规范对 maxDrawIndirectCount 的最低保证只有 1，即只保证单条间接绘制可用，一次 API 调用展开多条绘制的 multi-draw indirect 依赖驱动上限，当时的移动驱动普遍很低或干脆为 1。演讲者自己后文也承认 multi-draw 与 bindless 在 Vulkan 1.0 平台下拿不到支持，前后对照可知：他这里的"都可以拿到"指的是"单条间接绘制 + 计算着色器"这个最小可行组合，表述是自洽的。对照 DX12 的 ExecuteIndirect 从一开始就支持一次执行多条命令。后续演进补全了这块短板：descriptor indexing（bindless 基础）2018 年出扩展、2020 年 Vulkan 1.2 进核心，如今安卓主流 SoC 的驱动才真正具备完整形态 GPU 驱动的全部原料——2020 年的天刀是在原料缺斤短两的条件下搭的这套管线。</p></div>
+</article>
+</section>
+<section class="chapter" id="terrain-results">
+<header class="ch-head"><span class="ch-en">Terrain: Before/After Numbers</span><h2>地形落地：算法对比与性能数据</h2></header>
+<article class="para">
+<div class="zh"><p>我们看一下，在天刀手游里面，GPU地形实施之后的结果。首先我们介绍一下CPU地形常用的算法，我们上一个版本里面的地形算法是CPU端的Geometry Clipmap算法，它采用的裁剪剔除方式是视锥的裁剪剔除方式，对比GPU Driven，它少了depth剔除，它计算LOD的方式是根据距离，而GPU Driven是可以根据距离以及地形块的复杂度来计算。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】对照组选的是 Geometry Clipmaps（Losasso 与 Hoppe，SIGGRAPH 2004）：以相机为中心的嵌套同心环网格，内环密外环疏，相机移动时环滚动更新，LOD 纯按距离分级。这个算法的先天缺陷正对应 GPU 驱动版的三个改进点：其一，只有视锥（frustum）剔除、无深度剔除——山背面、谷地里被山体完全挡住的地形照样生成顶点并光栅化，过绘制浪费大；其二，LOD 只看距离，不看内容——一片平坦的草地和一片沟壑纵横的山地用同样密度的网格，平坦区域的顶点是纯浪费；其三，CPU 每帧更新 clipmap 环、组装顶点流，提交成本随地形规模线性涨。天刀的 GPU 驱动版补上了深度（Hi-Z）剔除，且让"地形块的复杂度"参与 LOD 决策——即离线给每个地形块打复杂度标签（起伏剧烈的块保持高密度，平坦块降级），这是超出标准 clipmap 的混合 LOD 策略，属于针对大世界内容分布的务实改良。顺带一句，业界后来在《幽灵行动：断点》（GDC 2020 讲过其地形与植被渲染）等作品里也走向"预烘焙地形块属性 + GPU 剔除"的同款路线，说明这个设计在移动与主机两端都成立。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>送入clipmap方式的顶点处，因为有两个pass，其中一个是要通过Virtual Texture来使用，在这种条件下，Geometry Clipmap算法处理后，渲染需要21万乘2的顶点数，而在GPU Driven情况下，因为获得了比较好的剔除效果，它只需要8万6的顶点数。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【数字复核段，含两处疑似误转写】先纠错："送入clipmap方式的顶点处"一句不通，"顶点处"疑为"顶点数"之误（下文紧接着就在讲顶点数），照录；"21万乘2"即 21 万 × 2。复算：CPU clipmap 路线渲染 21万 × 2 = 42 万顶点，GPU 驱动路线 8.6 万顶点，顶点量降到 20.5%，削减约 79.5%——这个削减幅度单靠视锥内外的差别解释不了（视锥剔除两条路线都有），增量收益只能来自深度剔除（被遮挡的地形块不再提交）与复杂度感知的 LOD 降级（平坦块用粗网格），数字与机制自洽。"两个 pass，其中一个要通过 Virtual Texture 来使用"这句表述含混，合理还原是：地形被两个渲染通道消费（例如主光照通道与另一个使用虚拟纹理采样结果的通道，或深度预通道/阴影通道），clipmap 时代每个通道都要完整提交一遍顶点，所以 ×2；GPU 驱动时代剔除后的顶点流被两个通道共享复用——此处为推测性还原，原词待核。顶点带宽量级感受一下：42 万顶点按每顶点 32-48 字节（位置/法线/UV）计约 13-20MB 每帧每遍，在 2020 年中端机 10-20GB/s 的有效带宽里占相当可观的比例，这个削减直接兑换成帧时间与功耗。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>最后看一下GPU时间，在GPU Driven的情况下，我们在iPhone8P上，可以获得2.9毫秒的时间开销，这比通过CPU的方式下，节省了近四分之一的成本；而在CPU端获得收益更大，提交线程和渲染线程，每个都可以获得五毫秒以上的收益。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【数字复核段】机型定位：iPhone 8 Plus = Apple A11（2017），三核自研 GPU，内存带宽约 25GB/s 量级——2020 年的测试基准用 2017 旗舰，说明天刀的"高端档"目标覆盖面是发布前两三年的设备，这个坐标对判断数字成色很重要。GPU 时间复算：GPU 驱动后地形单模块 2.9ms，"节省近四分之一"反推旧方案约 2.9 / 0.75 ≈ 3.9ms，GPU 侧净赚约 1ms。放进帧预算掂量：2.9ms 占 30fps 预算（33.3ms）约 8.7%，占 60fps 预算（16.6ms）约 17.5%——地形单模块近 3ms，对大世界 MMO 属于合理但偏贵，也解释了为什么值得为它大动干戈。真正的重磅在 CPU：提交线程与渲染线程"每个"省 5ms 以上，两条线程合计 10ms+——在 60fps 的 16.6ms 预算里，10ms 的 CPU 回收基本就是"能不能稳 60"的分水岭。这个收益结构（CPU 收益远大于 GPU 收益）再次确认了 GPU 驱动的第一性价值：它本质上是把 CPU 提交成本换成了 GPU 上一段更高效的计算，GPU 侧的小赚是顺带的。需要标注的缺口：数字均未说明是哪个场景、哪个视角（俯瞰全景 vs 贴地近景顶点压力差数倍），也没有说明 8.6 万顶点是峰值还是均值——演讲数字按量级采信，精确值存疑。</p></div>
+</article>
+</section>
+<section class="chapter" id="terrain-pipeline">
+<header class="ch-head"><span class="ch-en">The 4-Step Pipeline</span><h2>GPU Driven 地形管线四步</h2></header>
+<article class="para">
+<div class="zh"><p>GPU Driven的流程主要包含GPU Driven和Virtual Texture两个算法，这两个算法的实现是有互相的交叉，出于简化我们只讲GPU Driven相关流程上的一些算法。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>范围声明：天刀地形 = GPU 驱动（可见性 + LOD + 间接绘制）+ 虚拟纹理（材质分页流式）双支柱，且两者实现互相交叉——合理推断交叉点是：剔除结果同时服务于 VT 的页请求与调度（被剔除的块不需要更新其材质页），Hi-Z 金字塔也可能被 VT 的 mip 管理复用；原文未展开，此为结构推测。这个"双算法咬合"的架构在当年移动端是重投入：虚拟纹理意味着物理页缓存、页表、反馈通道（读回屏幕空间请求）整套基础设施，天刀端游遗产（端游就有地形 VT）应该降低了不少移植风险。演讲只讲 GPU 驱动部分，所以下面三段的四步流程（Hi-Z 生成 → GPU 遮挡剔除 → 间接参数生成 → 间接绘制）才是本篇的技术干货核心。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>首先是深度的mips生成。这部分算法是在compute里面实现的，其次我们是在compute里实现GPU遮挡剔除，使用上一步制作的深度缓冲buffer。GPU的遮挡剔除主要是通过计算送入的patches的尺寸，看它处在哪一级的深度缓冲上，并对比这一级深度缓冲的深度和你的深度，来决定是否被depth剔除掉。通过这个流程我们可以获得可视的patches数目，根据可视的patches数目，通过compute来做indirect的Arguments的buffer，从而生成出来。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【核心算法段，重点讲透】这就是标准的分层 Z 缓冲（Hi-Z，hierarchical-Z）遮挡剔除在移动端的落地，机制逐条拆：第一步，把上一帧的深度缓冲降采样成深度金字塔（mip 链），每个 2×2 块取<strong>最大</strong>深度（最远）写入下一级——取最大是保守性要求：粗级 texel 记录的是它覆盖区域内最远的深度，后续用它判遮挡才不会误杀近处物体。第二步，对每个地形块（patch）：先把它的包围盒投影到屏幕空间得到 2D 包围盒，按包围盒的屏幕尺寸决定采样哪一级 mip——原则是让一个 mip texel 恰好覆盖整个包围盒（屏幕上越小的块用越粗的级），这样一次比较就能代表整块区域；再比较"块的最近深度（包围盒的最小 NDC 深度）"与"该 mip texel 的最远深度"，若块最近点都比那片区域已画出的最远深度还远，则它整块被遮挡，剔除。第三步，幸存块的计数与紧致化（compact）：计算着色器里用原子计数/prefix sum 把幸存 patch 的绘制参数（实例偏移、索引数、实例数）写入间接绘制参数缓冲。第四步（下一段）一条间接绘制指令消费这个缓冲。有一个演讲没提的关键工程细节必须补：Hi-Z 用的是<strong>上一帧</strong>的深度，存在一帧延迟——相机快速转动时，新进入视野的地形块在旧深度金字塔里没有遮挡记录，处理不当会出现"晚一帧才出现"的瑕疵，通行缓解手段是把比较的屏幕包围盒外扩几个像素（膨胀余量）或按相机角速度放宽余量；天刀大概率也做了类似处理，原文未提，属于应向演讲者求证的点。另注意"看它处在哪一级的深度缓冲上"的"深度缓冲"这里实际指深度金字塔的层级，按上下文理解。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第四步就是把这些准备好的indirect buffer给绘制出来。这个就是整个地形使用GPU Driven的渲染流程。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>收尾一步，可补的工程细节：间接绘制阶段消费的顶点/索引缓冲是离线烘焙、常驻显存的地形块库，每帧变的只有 GPU 生成的参数缓冲——这正是"draw call 数与场景规模解耦"的实现面。同步语义值得 DX12/Vulkan 开发者注意：计算着色器写完参数缓冲后，需要管线屏障把该缓冲从存储写入（VK_ACCESS_SHADER_WRITE_BIT）转到间接读取（VK_ACCESS_INDIRECT_COMMAND_READ_BIT），Vulkan 1.0 时代没有 sync2 这样的高级封装，屏障范围写错（过宽或漏）是这类管线最常见的性能坑与正确性坑。另外，整条链（Hi-Z 生成 → 剔除 → 参数生成 → 绘制）是帧内的 GPU 串行依赖，天然吃掉一部分并行度，所以实践中常把剔除提前到帧首、与上一帧的后期处理重叠。至此四步闭环完成——这四步在今天的 UE5 Nanite（cluster 剔除 → 层级选择 → 紧致化 → 间接光栅）里仍能一一对上，只是粒度从 patch 换成了 128 顶点的 cluster、决策树从平面过滤换成了 LOD 树。</p></div>
+</article>
+</section>
+<section class="chapter" id="groupshared-and-lod">
+<header class="ch-head"><span class="ch-en">Groupshared Memory &amp; LOD</span><h2>共享内存优化与 LOD 体系</h2></header>
+<article class="para">
+<div class="zh"><p>在这里面有一个非常重要的优化，也在compute上是可以达成的，这个优化主要是利用compute里面的一个Thread shared memory的方式来做，它减少了对于CPU到GPU之间的多次的dispatch、减少了binding memory pingpong操作，在IMD的一篇文章里面也展示了这种优化更好的效果。它能应用的范围主要在于对你的buffer做filter，例如我们经常在渲染管线中提到的Bloom、高斯模糊、自动曝光等，这些对于区域进行filter的操作，都可以采用这些方法来获得优化。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>先纠一处转写问题："IMD的一篇文章"——育碧、寒霜之外，讲共享内存归约优化最著名的技术文章来自 <strong>AMD</strong>（GPUOpen 系列，含单 pass 降采样与 LDS 归约的经典实现），"IMD"疑为"AMD"的听写之误（I 与 A 的发音在口头汇报里极易混），原词待核。内容本身是计算着色器优化的核心课：Thread shared memory（HLSL 的 groupshared / Vulkan GLSL 的 shared）是同一工作组内共享的片上 SRAM（移动 GPU 每工作组通常 16-32KB，规范最低保证 32KB 量级）。没有它时，多级归约要每级发一个 dispatch：全局内存写回 → 屏障 → 再调度读回，每一轮都是全局内存往返 + 描述符重绑，也就是演讲者说的"多次 dispatch 与 binding memory pingpong"。有了它，一次读入全局内存后，工作组内通过 barrier 与共享内存做树状归约，片上完成全部层级。适用面正如他所列：一切区域型 filter——Bloom 的降采样链、高斯模糊（可分离两趟 + LDS 缓存行数据避免重复采样）、自动曝光的直方图/平均亮度统计。这是把"算法按内存层级设计"落到实处的典型例子，也是普通用法与高手用法之间的分水岭。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我们看一下它怎么应用在天刀手游的地形体系里。首先我们会做第一次的dispatch，这个dispatch会产生16乘以16的线程组，每组128条线程，这128条线程读入深度，放入mips里；第二步通过同步的方式，再把上一级的mips相邻的四个点取出来，合并选择最深的单位，写到第二级的mips里；然后依次类推完成四级的写出。在第二个dispatch里，我们用同样的方法，dispatch一个线程组，128条线程，同样地把后面32乘16的mips写入完成。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段，含数字推演】这段是上一段的落地实例，把数字摊开算：第一个 dispatch 产生 16×16 = 256 个工作组 × 每组 128 线程 = 32768 线程。组内流程：128 条线程把深度读入 → 写第 0 级 mip → 屏障 → 每次取上一级相邻 4 个 texel 归约（取最深，即 max）写下一级 → 逐级类推，单次 dispatch 内完成四级写出。这正是"单 dispatch 多级归约"的 Hi-Z 生成：每 4:1 一级，四级即 256:1，256 组各管自己那片区域。第二个 dispatch "一个线程组、128 条线程"处理到最终的 32×16 = 512 texel 的 mip——512 个 texel 恰好能被 128 线程的四线程一组归约、或 128 线程每线程管 4 个 texel 再组内归约，数字上自洽。必须标注的缺口：<strong>原文没有给出深度缓冲的源分辨率</strong>，32768 个初始归约点反推不出唯一的源图尺寸（若每线程预读 2×2 则源图为 1024 级别的开方；若每线程读 1 texel 则对应 181×181 的非整尺寸，不成立），线程到 texel 的完整映射无法唯一复算——量级与机制可信，精确映射存疑，原数字有缺口。另一点值得点出的技术判断：Hi-Z 只需到"一个 texel 罩住最大屏幕块"的粒度即可，不必生成整条 mip 链到 1×1，所以最后一级停在 32×16 而不是 1×1，说明作者清楚金字塔该建多粗就停——又一个"按用途设计算法"的细节。深度图长宽比 2:1（32×16）符合手机横屏主渲染目标的比例。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在GPU Driven的地形系统里面，我们仍然有另外一个机制的优化，这个机制是LOD体系。在Farcry的实现，主要采用的是CPU四叉树的方式，来组织LOD的patches，根据相机的距离更新并选择CPU四叉树上的节点，送入GPU进行indirect buffer和GPU Culling。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>对照组又是育碧系：Far Cry 的地形 LOD 用 CPU 四叉树——每个节点对应一块地形，按"相机距离 + 屏幕误差"决定细分还是合并，经典地形 LOD（从四叉树、ROAM 到 chunked LOD 一脉）的通病在 CPU 侧：树遍历是大量指针追逐，缓存不友好；每帧从根走到叶的更新对分支预测与内存子系统都不友好；节点选择还要处理裂缝（相邻块 LOD 不同级时的接缝拼接）。这套在主机 CPU 上无碍，放在 2020 年手机的中核上就是每帧毫秒级的纯管理开销。需要指出 CPU 四叉树方案的一个真实优点是天刀方案没有的：树可以表达连续/自适应的 LOD 过渡（逐节点几何 morphing），而分块方案只能整块换级，块边界要有裙边或对齐设计来遮接缝——这是天刀"离线烘焙块 + 运行时过滤"路线付出的隐藏代价，原文未提，读者设计类似系统时应纳入考量。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>而对于天刀手游来说，我们会把这些patch信息，先通过offline的方式bake出来，在每一个相机发生位置变化的时候，会去更新这些bake出来的信息，根据这些信息，再会去对改变的patch做过滤，生成新的indirect buffer。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】天刀的替换方案是把"运行时树遍历"变成"离线烘焙 + 运行时增量过滤"：所有 patch 的属性（位置、包围盒、LOD 级、复杂度标签）离线烘焙成平坦数组；相机移动时只对受变化的格子增量更新；然后对该过滤的 patch 做筛选生成间接缓冲。这个设计的精髓是数据布局：平坦数组（SoA 排布）对 CPU 缓存极度友好，过滤是可向量化的线性扫描（正好用得上他们 ISPC 生成的 NEON 代码），可以摊到小核/工作线程；没有堆分配、没有指针追逐、没有每帧树的平衡维护。移动 CPU 的现实就是：同样的逻辑，缓存友好版本与指针追逐版本差 3-10 倍是常态。代价同样明确：烘焙数据不可变——地形 LOD 结构在运行时不能重组织，遇到运行时可变地形（玩家挖洞、建造）就失效，所以这套只适合静态大世界；天刀的家园（可定制地形与建筑）走的确实是另一套剔除方案（见后文 readback 段），两个场景两套设计，边界划得很清楚。这种"数据不可变性换运行时效率"的取舍，是移动端引擎设计里最常见也最值得学习的模式。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我们看一下差异：首先第一步我们读到了所有的patches的属性；第二步我们根据视锥裁剪，获得视锥裁剪之后的结果；第三步我们再用HiZ产生的depth，产生一次depth裁剪。在完成这三步之后我们就可以生成Indirect Draw Arguments的buffer，然后 dispatch出去。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>完整流水线的最终复述，三步过滤 + 参数生成：读全部 patch 属性（烘焙数组）→ 视锥剔除（patch 包围盒 vs 视锥平面，通常再带一个保守的屏幕尺寸下限过滤，亚像素块直接丢或降级）→ Hi-Z 深度剔除（上一段讲的金字塔比较）→ 幸存者生成间接绘制参数。工程上这三步通常各自是一个 compute dispatch，步间靠屏障衔接；也有实现把视锥与深度剔除合成一个 kernel（数据已在寄存器/共享内存里，省一次全局往返）。值得点出的细节是"首先第一步我们读到了所有的patches的属性"——不过滤先全量读入，说明第一遍 dispatch 只做属性加载与粗判，这种"先读后滤"的结构在写紧致化（compact，原子追加或 prefix sum）时是标准做法：第一遍数出幸存者数目并写索引，第二遍（或同遍后半）按索引写参数。"然后dispatch出去"口语里指发起间接绘制，与计算派发的 dispatch 同词不同义，注意区分。</p></div>
+</article>
+</section>
+<section class="chapter" id="vegetation-and-home">
+<header class="ch-head"><span class="ch-en">Reuse: Vegetation &amp; Homestead</span><h2>横向复用：植被与家园</h2></header>
+<article class="para">
+<div class="zh"><p>在我们完成GPU Driven的形成之后，引擎组会把这些所有的流程重新梳理一遍，再根据这些梳理出来的流程，去选择可以应用GPU Driven的其他渲染模块。其中比较重要的一个渲染模块，就是场景的植被管理。其实有经验的渲染程序可能直接会意识到这一点，其实草的geometry和地形的patch，或者是sector的管理是一个非常类似的概念，它们都有LOD，都有不同的geometry的表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>框架复用的方法论段落："完成 GPU Driven 的形成之后，把所有流程重新梳理一遍，再选择可复用的其他渲染模块"——先做一个模块把骨架跑通，再把骨架抽象成可复用管线，这是引擎组织技术扩散的正确姿势（对照育碧的引擎中心制：技术由共享引擎组孵化再横向推到各项目）。演讲者点破的同构性也准确：草地渲染与地形在数据模型上同构——都有 LOD（近处高模、远处退化成 billboard 或直接消失）、都有分块管理（地形 patch 对应植被的 sector/实例分桶）、都是海量同构几何。区别在实例化程度：植被天然是"一个网格 × N 个实例变换"，比地形更适合实例化间接绘制（instanced indirect draw）。2025 年视角，这个同构在 UE5 里走向了另一个极端——Nanite Foliage 把植被直接并入 Nanite 集群管线，LOD 过渡从"换网格"变成簇级连续退化，但那依然只在 PC/主机，移动端植被至今仍是"实例化 + 分桶剔除"的天刀模式。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我们绘制这些geometry LOD的时候最好的方法是通过Multi Draw Instanced Indirect的方案去做，另外一点是每种类型的草的Texture，它其实对应在地形上，更像是一个地形的Virtual Texture机制，也可以用bindless的方式去做绑定，可是在Vulkan 1.0的平台下，我们这两个API，Multi Draw Instanced Indirect或者是bindless都没办法获得更好的支持。所以在天刀手游的实现里，我们只能采用将草的每种类型，完成一次GPU Driven的culling和Draw Indirect Buffer的生成的方式。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段：API 残缺下的妥协设计】理想形态与实际形态的落差在这里展示得最完整。理想：一条 multi-draw instanced indirect（MDII）指令画完所有草——每种草类型是一段实例化绘制参数，全部参数由 GPU 剔除后生成，一次调用展开；贴图侧用 bindless（描述符索引寻址）让每个实例/每种草按索引取自己的贴图，不用拆 draw。现实（2020 移动 Vulkan 1.0）：前文已核实，maxDrawIndirectCount 最低保证为 1，multi-draw 在移动驱动上普遍不可用；bindless 的地基 descriptor indexing 2018 年才有扩展、2020 年 Vulkan 1.2 才进核心，当时的安卓驱动覆盖率接近零。于是天刀的落地形态是：<strong>以"草的类型"为拆分单位，每种类型独立跑一遍 GPU 剔除、独立生成一份间接绘制缓冲、独立发一条间接绘制指令</strong>。结果量级算一下：草类型数（几十种）× 每类型一条 draw = 几十条 draw call，对比实例数（可能数万），CPU 提交压力仍然可控；每个类型内部仍然享受完整的 GPU 剔除与实例化收益。这是教科书级的"约束下的降维设计"：接受 draw 数从 1 退化到类型数，守住"剔除不下 CPU、参数 GPU 生成"的底线。同期的对照：DX12 主机上 ExecuteIndirect 一次可执行多条，寒霜与育碧的植被管线正是靠它实现单指令全覆盖——移动与主机的差距不在算法认知，就在这几条 API 的支持度上，这段是那份差距的实物证据。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>另外在天刀手游里，比较适合GPU Driven的场景是家园的渲染。家园的玩法在游戏里面，主要是可以让玩家尽可能多的定制我们整个家园的地形、地表、墙壁、物件、地板等，在这个层面上，其实它是需求非常多的geometry类型。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>家园（玩家宅邸/建造玩法）作为 GPU 驱动的第二个落地场景，其渲染特征与策划可控的大世界正好相反：几何类型数量由玩家行为决定——玩家把几百种物件、地板、墙随意组合，类型数上限就是资产库的全集。这类 UGC（用户生成内容）场景是 draw call 爆炸的最高危区：每个物件的材质、网格、实例变换都不同，传统 CPU 逐物件提交在重度装修的家园里会把提交线程打爆。理解了这个特征，就能理解为什么"geometry 类型极多"反而被列为 GPU 驱动的适配条件——正是类型多到 CPU 组织不动，才需要把组织工作搬到 GPU 上批量处理。顺带一句产品背景：家园是天刀手游的长线留存玩法（种菜、装修、社交），渲染卡顿直接伤这个玩法的体验，引擎组愿意为它做一套专用渲染路径是产品权重决定的。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第二它的区域相对来说比较小，它只有128米乘128米的自定义空间，而在这种小的自定义空间情况下，遮挡剔除是必须要做的非常好的一种技术。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>128 米 × 128 米这个数字值得咀嚼：家园空间小且封闭（有围墙），玩家在里面高密度摆放物件，墙体与建筑互相遮挡——这意味着遮挡剔除的收益率极高（视野内实际可见物件占总量比例很小）。与大世界开阔地形对比就明白场景选型的逻辑闭环了：大世界视野开阔、遮挡少，Hi-Z 剔除的收益主要来自地形 LOD 与背面（收益主要在顶点端）；家园密集遮挡，同样的 Hi-Z 基础设施收益主要在物件级（收益在 draw 与像素两端）。<strong>同一套剔除基础设施在两类场景里挣的是不同的钱</strong>——这是"先建框架再选场景"策略能摊薄成本的根本原因。技术上，128×128 米的空间用一张空间网格分桶（比如 4 米一格，64×64 桶）就足够组织所有物件的剔除输入，连四叉树都用不上，实现复杂度很低。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>从这两点来看，GPU Driven是非常适合应用在家园渲染的情况，问题就在于，家园里面的这些物件，其实和草的类型一样，它都非常是依赖于Multi Draw Instanced Indirect和bindless这两种API的实现。对于天刀手游来说，我们只能退而求其次，我们利用地形步骤算出来的HiZ的buffer做遮挡剔除，送入一套做遮挡剔除buffer的内容，然后通过CPU从readback的方案，来获得这些buff er的遮挡剔除的结果，在CPU端组织尽量多的instance对象。即便采用这种方式，我们在家园渲染情况下也获得了比较好的渲染效率。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段：GPU-CPU 混合回退方案】这段是全文对"移动端现实"最诚实的一次记录。家园物件与草一样依赖 MDII + bindless，两者都没有，于是被迫打破 GPU 驱动的第二条原则（数据不回 CPU）：GPU 用地形阶段算好的 Hi-Z 缓冲对物件做遮挡剔除 → 剔除结果（可见物件列表/存活掩码）写入缓冲 → <strong>CPU 通过读回（readback）拿到结果</strong> → CPU 端把可见物件尽量合并成实例化绘制再提交。这个回环的工程代价必须点透：GPU→CPU 读回要么同步等待（fence 阻塞，白白吃掉几毫秒），要么接受一帧延迟用上一帧的剔除结果——家园是玩家慢速漫游的小场景，相机变化平缓，一帧延迟的剔除几乎无风险，这个代价在这里可接受，但同样的方案放进快速战斗的大世界就会漏剔除/晚出现。因此这是"场景特性决定方案边界"的又一例证。整理稿转写痕迹两处：其一"它都非常是依赖于"语序混乱，应为"它都非常依赖于"，照录；其二"buff er"为跨词断字，已还原为"buffer"（本精读唯一一处动过的字符，特此声明）。"送入一套做遮挡剔除buffer的内容"表述含混，按上下文理解为"把物件数据组装成一套供遮挡剔除用的输入缓冲"。最终效果"仍然获得比较好的渲染效率"——合理：物件级剔除把提交量砍到可见集合，CPU 只组织幸存者的实例化合并，比逐物件提交好一个数量级。这个"GPU 算可见性 + CPU 读回组装"的混合形态，正是许多主机游戏在完全 GPU 驱动成熟前的中间态，天刀在家园里把它用到了最适合它的场景。</p></div>
+</article>
+</section>
+<section class="chapter" id="compute-experiments">
+<header class="ch-head"><span class="ch-en">Three Experiments</span><h2>三条实验线：实时压缩、VT 压缩、Cluster Deferred</h2></header>
+<article class="para">
+<div class="zh"><p>在完成了compute的基础机制上，我们在其上面也做了各种其他的尝试，其中有一条是完成了在ASTC和PVRTC的GPU实时压缩，这个也是通过GPU compute来实现的，这个功能可以用在角色的妆容系统上。在天刀手游里，整个角色的妆容系统是需要完成多个Feature的绘制，如果不能很好地去做baking到一张贴图上，在实时渲染的情况下，它会产生更多的开销。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】这是全场最容易被略过、其实技术含量最高的一项：用计算着色器在 GPU 上<strong>实时</strong>做 ASTC 与 PVRTC 块压缩。先还原需求背景：天刀的妆容系统（捏脸、妆容是天刀的核心卖点之一）由多层特征（Feature：眉、眼影、腮红、唇色、花钿等）叠加，每层是独立的贴图与参数。实时逐层采样渲染意味着角色面部着色器要多张贴图绑定、多次采样与混合，角色一多开销线性放大；所以正确做法是把玩家的妆容合成（bake/合成）到一张个人专属贴图上，着色时只采样这一张。但烘焙结果要驻留显存，不压缩就吃内存——于是需要"实时压缩"：合成完立刻在 GPU 上压成压缩纹理格式，内存立刻从 RGBA8 全尺寸降到压缩格式的 4-8bpp。双格式（ASTC + PVRTC）说明兼容线拉到了只支持 PVRTC 的老 PowerVR 机型（A7 及更早 iPhone）与支持 ASTC 的新机型（A8 之后 iOS 与绝大多数安卓 GPU）——2020 年的产品还在为 2013-2014 年的设备兜底，这个兼容负担本身就是时代注脚。块压缩在 GPU 上做有天然并行性（每 4×4/5×5 块独立编码），但 ASTC 的编码搜索空间（块模式、端点量化、权重选择）极大，实时编码必然用快速启发式而非离线编码器的穷举——质量让步换时间，这正是下一段用 PSNR 验收的背景。这项工作的先例是 id Software 的实时 DXT 压缩系列文章（van Waveren 等，2006-2008），把同样思路平移到移动格式并跑在计算着色器上，在当时的公开资料里非常罕见，属于自研深度技术的范本。2025 年对照：贴图按需压缩仍是显学问（UE5 的 VT 页压缩、Oodle Texture 的运行时解压配合离线压缩主导了主流，实时块压缩在 GPU 上依旧小众）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在实时baking到贴图上，我们还希望它能够尽量去做压缩，来减少内存的使用。我们测试了一些compute compression的效果，在PSNR和效率上都能获得比较好的表现。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>验收指标段的解读：PSNR（峰值信噪比）与"效率"（应指压缩耗时/吞吐）两项都"表现不错"。要提醒的是 PSNR 作为唯一画质验收指标的局限——块压缩的高频结构伪影（blocking，块边界方格感）对 PSNR 的影响很小（能量集中在低频），人眼却极其敏感，这个指标盲区马上就在下一段 Virtual Texture 压缩的失败里应验了：同样的"PSNR 不错"，最后因为近景 blocking 被产品否决。所以这两段连起来读是一个关于验收方法论的完整案例：<strong>技术指标通过不等于画面验收通过</strong>，移动端贴图压缩的验收必须包含真机近景走查。数字缺口照例要标注：PSNR 具体值（多少 dB）、压缩耗时（多少毫秒/张）、妆扮贴图的分辨率与格式均未给出，无法横向对比离线压缩器的质量基线。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>另外一个我们尝试的对于VirtualTexture的压缩。前面提到地形的VirtualTexture技术是需要更新大量的地形块数据，越多的地形块数据，才能使更新的频率变低。在天刀手游里，我们使用2048乘2048，三张不经压缩的材质，我们通过调整贴图的大小和贴图数量以及压缩方式，基本上能把大张贴图的时间控制在四毫秒以下，这个时间其实已经可以达到使用的效果。从远处来看，其实地表材质是很难观察到差异性，这是压缩前后的两张对比：</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段，含数字复核】先理顺一句别扭的转写："越多的地形块数据，才能使更新的频率变低"应理解为"虚拟纹理的物理缓存容量越大（能装下的地形材质页越多），页面的换入换出频率才越低"——VT 的物理缓存与虚拟地址空间的比率决定命中率与更新流量，这是虚拟纹理的基本权衡。数字摊开：2048×2048 × 3 张未压缩材质——3 张按地形材质惯例推测为反照率（albedo）/法线/混合权重类通道（推测，原文未指明），未压缩按 RGBA8 每张 2048×2048×4B = 16MB，三张共 48MB；若任一通道是 HDR/半精度还要翻倍。这个内存占用还不算大，真正的压力在<strong>更新流量</strong>：地形材质页从磁盘/内存流式进物理缓存，未压缩页的拷贝带宽是压缩页的数倍，而"大张贴图的时间控制在四毫秒以下"指的就是这套页更新（含压缩变换）的每帧预算——4ms 对 16.6ms 的 60fps 帧预算是四分之一，相当奢侈，说明他们是把 VT 更新摊帧处理的（每帧只更新若干页），4ms 是峰值档；对 30fps（33.3ms）则约 12%，可以接受。"从远处来看很难观察到差异性"这句物理上是对的：远处每个材质 texel 投影到屏幕不足一像素，压缩伪影被降采样自然掩盖——问题必然出在近处，下一段立即应验。这段结尾提到"这是压缩前后的两张对比"，对应 PPT 配图，转写稿未保留，画面证据缺失，只能依据文字结论采信。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>但是这种算法，我们对比了一下它的细节表现，仍然可以看到在开启压缩的情况下，它其实是有一些Blocking的瑕疵，但这样的瑕疵在我们游戏的画面品质情况下，是不能接受的，所以这种方案最终只能把它放弃。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>blocking（块效应）是块压缩的宿命伪影：每个块独立量化，块边界处连续内容被不同端点近似，出现方格状接缝。天刀是大世界近景写实向产品，玩家视角可以贴地看材质细节，方格感直接不可接受——于是"PSNR 达标 + 效率达标"的方案被画质验收一票否决。这个案例值得展开两层：第一层是决策文化，技术先进（GPU 实时压缩 VT 页在当年绝对是前沿）但达不到产品品质线就放弃，且在公开分享里如实记录放弃原因——这是国内分享里少见的诚实，比成功案例更有参考价值。第二层是技术复盘：有没有不打 blocking 的折衷？可讨论的方向包括只压缩远 mip、近 mip 保真（他们自己观察到远处看不出差异，说明按 mip 分级压缩是自然的下一步）；用更低位深的 ASTC 高压缩模式只装次要通道；或干脆接受内存占用、把压缩预算花在别处。演讲未提及这些方向是否试过，属于未尽的探讨；结合"调整贴图大小和数量"已试过来看，他们大概率在压缩率与质量曲线上找不到满足品质的甜点，最终整体放弃。2025 年对照：Nanite 的虚拟几何把"材质贴在几何上"的采样问题重新设计（UV 空间一致性），材质侧的 VT 在移动端反而式微，这个失败方向后来被更大的范式变化绕过去了——不是被解决了，是被换赛道了。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>另外一个compute应用的领域，我们尝试了Cluster deferred。Cluster deferred主要应用于家园室内场景，在家园的室内场景下，主要的因素是，首先它是一个封闭的空间，它仍然和之前家园的环境一样有大量动态的物体和光照效果。我们在这幅图上可以看到，家园物体里面有大概55盏灯，从左上角的一张蓝色的背景图来看，这个区域上最多的话，可以被8盏灯以上的照亮。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段】分簇延迟着色（clustered deferred）的动机段：视锥体划分成 3D 簇（x×y×z，比如 16×8×24），每帧把光源按影响范围挂到簇上，着色时每个像素按自己所在簇取光列表——把每像素光源采样从"全场景所有光"（前向暴力）降到"簇内几盏"。与分块（tiled，2D 屏幕分块）相比，分簇多了深度切分，避免远近光共享同一光列表的浪费。数字掂量：55 盏灯（家园室内灯具、玩家摆放的发光物件），单区域最多 8 盏以上同时照亮——对前向着色这意味着热点像素要采样 8+ 盏光（每盏阴影/衰减/BRDF 评估），移动端直接爆炸；分簇后每像素只处理簇内光列表，成本可控。场景选择也讲逻辑：封闭室内（光多、遮挡多、范围小）是分簇延迟收益最大的场景；大世界室外以太阳+天空为主，用不上这套。"我们在这幅图上可以看到""从左上角的一张蓝色的背景图"对应 PPT 配图（应是簇光列表的可视化热图），图已丢失，55 与 8+ 的数字只能按文字采信——55 盏是场景总数、8 盏是单簇峰值，两个口径不同，文字表述可分辨。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>在这个技术方案实现之后，我们发现它仍然解决不了几个问题：第一个问题就是deferred本身的固有问题，它的带宽问题，它需要设计更好的GBuffer搁置，也需要去应用一些API，例如subpass，或者一些更好的pass combine的操作；第二是在于它材质的复杂度，一个deferred的材质和forward材质，在整个大世界的使用是很难做兼容融合的，这个也增大了shader的复杂度或者工作量，这种方向也许对未来是一个比较好的技术点，但是在现有的架构下，我认为它还是不够成熟，所以这套方案我们仍然是放弃了。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段：移动端延迟着色的判决书】这条放弃记录句句命中要害，逐条拆解。其一，带宽：延迟着色要写多张 G-Buffer（反照率/法线/材质参数），再读回来着色——在 PC 的立即模式（IMR）GPU 上这是 DRAM 来回吃带宽；在移动的分块（tile-based）架构上，理论解法是把 G-Buffer 留在片上 tile 内存里：Vulkan 的 subpass + 输入附件（input attachment）正是这个用途，G-Buffer 子通道写完、光照子通道直接读片上数据不落 DRAM（GLES 时代的 pixel local storage 是其前身，Metal 的 memoryless 与 tile shader 同理）。演讲者点名 subpass 与"pass combine"（应指子通道合并/渲染通道组织，原词照录）说明他们真试到了这一层；但移动 tile 内存的容量有限，G-Buffer 布局（几张、每张多少位）直接决定 tile 压力与 flush 次数——原文"GBuffer搁置"疑为"G-Buffer 设置/布置"之误（按"布局设计"理解，原词照录），他们说"需要设计更好的 G-Buffer 布局"，即当时没找到满足品质的紧凑编码。其二，材质复杂度：G-Buffer 是固定编码的材质总线，装不下大世界已有的前向定制材质（皮肤、头发、半透明、植被的双面光照都得特殊处理），为家园室内一小块场景维护第二套材质体系、shader 排列翻倍、两套画质要对齐——工程账算不过来。其三，时代注脚："也许对未来是一个好技术点"这个判断在后来部分应验：UE 从 4.22 起提供移动端延迟着色（紧凑 G-Buffer、限定的材质与光类型支持），Vulkan 1.1+ 的 subpass 支持也成熟了；但产业主流（原神、星穹铁道、鸣潮这些大世界产品）至今仍是前向 + 烘焙 GI 为主，说明移动端延迟着色的甜点区仍然很窄——天刀 2020 年的结论五年后依然大体成立，这份判决书的含金量就在这里。</p></div>
+</article>
+</section>
+<section class="chapter" id="takeaways">
+<header class="ch-head"><span class="ch-en">Takeaways: How It Landed</span><h2>技术落地的三条决策</h2></header>
+<article class="para">
+<div class="zh"><p>回到整个话题，我们从应用compute技术来看技术落地的情况。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>收束段的引入。注意演讲者的总结视角不是"我们用了多少先进技术"，而是"技术怎么落地的"——前文所有内容（含两次放弃）都将被三条决策复盘：基础先行、尖兵突破、产品否决权。对读者的提示：这三条经验单独看都朴素，但与前面的具体案例（GPU 驱动地形的路径依赖、VT 压缩与 cluster deferred 的否决）对照着读，就能看到每条经验背后都有真实代价支撑，不是成功学口号。这也是读工程分享的正确方法：结论廉价，看结论与代价的对应关系。本篇的三组对应关系索引如下：基础先行对应三次测试的顺序（线程 → Vulkan → GPU 驱动是一条依赖链而非排期巧合）；尖兵突破对应地形的性能数据（CPU 省出 10ms 是把最好的兵力押上去的回报）；产品否决权对应两个放弃案例（VT 压缩与分簇延迟着色的研发沉没成本）。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我认为有几个决策是非常重要的：第一是需要有一个非常好的基础，这个基础就来源于我们在于从多线程开始，就意识到整个计算体系应该去往不同的compute方向，或者是往其他线程方向去使用，通过减少主线程的开销成本，来去提升整个游戏的性能效率。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>第一条决策"基础先行"值得精确化：多线程化不只是性能手段，更是后续 GPU 化的前置工程——把单体主线程拆成无共享状态的并行任务，本质是一次数据流梳理：谁依赖谁、什么可以批量处理、什么可以无状态重算。没有这次梳理，后续想把剔除下沉到计算着色器根本无从下手（数据还锁在主线程的对象图里）。所以三次测试的顺序（多线程 → Vulkan → GPU 驱动）不是偶然排期，而是依赖链：线程化梳理数据流，Vulkan 提供显式控制的原语，GPU 驱动才能闭环。这个演进顺序对任何想引入 GPU 驱动管线的团队都是可复用的路线图——跳过前两步直接抄第四步的代码，几乎必然失败。原文"我们在于从多线程开始"的"在于"是口语冗余，照录。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我们让有比较好技术功底的同事完成了GPU Driven地形的突破。在这个基础之上，继续使用GPU Driven的技术。解决了一些场景植被和家园的渲染效率问题，我们compute还解决了像自动曝光等等相关的问题。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>第二条是人才组织与复用策略："有比较好技术功底的同事"（尖兵）先啃地形这个最高难度的落点，框架立住后横向铺到植被、家园、自动曝光——一次深投资多次变现。两个值得展开的点：其一，自动曝光再次出现，与前文"Bloom、高斯模糊、自动曝光这类区域 filter 用共享内存优化"对上，说明计算着色器的基础设施（LDS 归约、直方图）被多个功能模块共享，这就是"框架"的含义；其二，这种组织方式要求团队里有能打硬仗的个人，也要求组织允许把最好的兵力投在基础设施而非紧急功能上——引擎组负责人的话语权在这类决策里是隐性前提，分享里不会明说，但做过引擎管理的人都知道这是最难的部分。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第三点则是在于技术落地和产品需求之间的要求，有很多产品技术可能是比较先进，但是它不能达到产品需求的质量品质，我们对于这种技术也只能忍痛割爱。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>第三条"产品否决权"：VT 压缩（blocking 伪影）与 cluster deferred（材质兼容）两个案例的具体回扣。这条经验的稀缺性在于它承认了沉没成本：GPU 实时压缩、分簇延迟着色都是投入了真实研发工时的项目，因为品质线不过关就被砍——团队敢砍、负责人肯在公开场合讲，比技术本身更能说明这个团队的工程成熟度。也要给出批评性的补充：这条分享的局限是只给了决策结果，没有给决策过程——品质验收线是怎么定的（多少机型、什么观看距离、谁签字）、有没有回归测试防止这类"技术达标但画面不过关"的项目走到很晚才发现，这些流程性内容一句未提。2020 年国内团队普遍还没有画质回归（pictorial regression）与真机自动化走查的流程，这块空白是时代局限，不是天刀独有；到 2025 年，头部工作室的管线里画质验收已经制度化（截图比对、色差度量、真机农场），这条经验的可操作版本才算补全。</p></div>
+</article>
+</section>
+<section class="chapter" id="qa">
+<header class="ch-head"><span class="ch-en">Q&amp;A: Shadows &amp; Porting</span><h2>Q&amp;A：阴影取舍与端游还原</h2></header>
+<article class="para">
+<div class="zh"><p>接下来是Q&amp;A环节，我已经收到了一些小伙伴们，提过来的问题，我将会选择几个作答。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>形式说明：2020 年正值疫情年，TGDC 线上举行，问答是预收集、演讲者挑选作答的形式（"我已经收到了一些小伙伴们提过来的问题"），不是现场自由问答——这意味着问题经过筛选，尖锐度天然打了折扣，两个入选问题都偏"safe"（怎么优化、怎么移植），没有触及设备分档、低端机策略、与 Unity 上游同步成本这些真正棘手的话题。读 Q&amp;A 时按"官方口径"采信度处理即可。预收集形式的好处是回答有准备——数字与技术细节可以提前核对，所以 Q&amp;A 里的具体陈述（比如下一段的阴影方案）可信度反而高于现场即兴；代价是无法追问，明显的追问点（角色动态阴影怎么处理、昼夜系统是否因此受限）都悬在半空没有下文，本精读只能以推测补注并标注不确定性。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>其中一个小伙伴提出性能优化时有什么技术难点，听说你们能以更低的规格实现更高标准，是怎么做到的？</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>问题本身是当时行业认知的切片："更低的规格实现更高的标准"被当成某种黑魔法来问——这个问题背后是 2020 年移动端开发者的普遍焦虑：硬件摆在那，凭什么天刀的画面能比同行高一档。回答（下一段）给的其实不是黑魔法而是"预算学"：先定标准（画质选择）再找平衡（取舍），把资源砸在玩家感知最强的地方。值得现在回看时点破的是：所谓"低规格高标准"的真相通常是把预算从玩家不注意的地方（阴影、非可见几何、过时材质）挪到注意的地方（光照、远景、角色），以及用工程复杂度（GPU 驱动管线）换效率——两样天刀都占了。"更低的规格"的参照系也值得钉死：2020 年旗舰是骁龙 865、A13/A14、天玑 1000+ 这一档，中端主流则是骁龙 765G、天玑 800 级别（GPU 有效带宽约为旗舰三成），天刀要在中端档保住可玩画质、在旗舰档拉开"超越端游"的观感，提问者说的"更低规格更高标准"就是对这条跨档落差的惊叹。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>问题非常有意义，其实我们在实现的过程中，没有特别去顾虑高规格和所谓的低规格，我们一般是设定一个标准，在这个标准之上再去找平衡。举个例子，对于我前面提到的光照或者是阴影的表达，我们认为阴影的表达是弱于光照效果的，所以我们仍然采用了比较传统的lightmap来bake shadow的方式，我们并没有在大世界里面使用实时的阴影。所以我觉得这更像是一个平衡的问题，要基于你的游戏本身去承受的技术点，优先选择面，最终找到一个适合游戏要求的技术。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p class="ex-sub">【关键段：全篇最大的取舍在此揭晓】"阴影表达弱于光照效果，所以大世界用传统光照贴图（lightmap）烘焙阴影，不用实时阴影"——这一句话把开场"光与影的取舍"选择题的答案补完了，也让前文"超越端游"的说法边界彻底清晰：端游有实时阴影（或高级的静态+动态混合），手游大世界没有。技术账值得算清楚：实时级联阴影贴图（CSM）在 2020 年移动端的成本 = 每帧从光源视角重绘场景深度（一次额外的场景几何 pass）+ 主着色的逐像素多级采样与过滤，中端机上轻松 2-4ms 外加显著功耗；烘焙阴影贴图的成本约等于零（运行时只是采样一张贴图），代价是阴影与光照固定——昼夜只能用预设的几档插值、动态物件（NPC、载具）不投影或用廉价的 blob/贴花阴影（原文未提角色阴影的处理方式，这是缺口）。产品侧这笔账在 MMO 上是划算的：大世界的观感大头是光照氛围与远景，静态阴影贴图在晴天场景几乎看不出妥协；亏的是黄昏/夜晚与实时昼夜联动（天刀的时间系统因此受限，推测为分档预设，原词待核）。横向对照可以确认这是当年大世界手游的集体选择：原神同样是静态阴影贴图 + 近距动态阴影的组合；直到 2025 年，虚幻的虚拟阴影图（VSM）在移动端仍默认关闭、硬件光追阴影在旗舰 SoC 上也只是演示级——移动端"光优先于影"这道题五年后还没有被硬件红利真正解开。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>第二个问题是我想了解的是像这类的经典IP，从端游移植到手游，从引擎技术角度，如何更好地还原端游品质？</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>问题的框架（移植/还原）本身值得先审视：天刀手游实际不是"移植"——引擎换了（自研 → Unity 定制）、资产重做、管线重建，真正"移植"的是美术方向与画面语言（美术风格、场景气质、标志性效果）。所以下一句回答"先明确要还原端游的哪些特点"正是对这个问题的解构：还原的对象不是技术，是玩家记忆中的画面特征。这个方法论对一切 IP 手游化项目通用：把"端游感"拆解成可枚举的画面技术点清单（远景、角色、云海……），逐项评估移动端的实现成本，优先保玩家情感锚点最强的那几项——而不是笼统追求"画质接近端游"。这套"还原清单"方法论后来在国产端转手项目里几乎成了标准动作（同期及之后的 MMORPG 手游化普遍采用"画面特征点清单 + 分级实现"的工作方式），但它的批判性视角也值得记录：还原导向天然保守，会把移动端团队的创新预算锁死在端游的画面范式里——天刀自己幸运的地方在于，它的还原清单里（物理光单位、GPU 驱动）混进了超越端游范式的升级项，而不只是复刻。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>这个问题我觉得可能要从两方面来去回答，第一方面是说我们需要去还原端游的哪些特点，这个特点其实对于我们《天涯明月刀》而言，还是非常明显的：第一要更加注重远景的表现；第二我们要有更好的角色的表现。我们有些特定的技术点，的确也做到了比较好的还原，例如说云海效果。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>还原清单的三项都对应具体的渲染投资：远景表现 → 地形 LOD/大气散射/远景雾效这套大世界管线（正好与前文 GPU 驱动地形、sky lighting 重定义对上）；角色表现 → MMO 的付费核心（捏脸、时装、外观质感），对应前文的妆容系统投入；云海 → 天刀端游的招牌画面记忆点（体积云/云海是端游时代的标志性效果），手游完整保留。这个清单的取舍逻辑依然是三维平衡：把预算集中投放在玩家情感锚点（第一眼远景、天天看的角色、传播度最高的云海），而不是均匀铺开。顺带一层观察：三项特征有两项（远景、云海）是"大尺度大气效果"，这类效果在移动端的性价比远高于微观细节（几何密度、实时阴影）——大效果通常用低频计算+全屏后期实现，每像素成本可控，但观感冲击大；这是移动端画质的"杠杆点"，天刀的选择非常老练。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>基于以上的这些，我先要明确从端游还原到手游上的一些画面技术点，然后去制定它的关键的技术要素，例如说《天涯明月刀》手游仍然延续了端游的PBR的管线，但是我们其实是使用了比端游更好的，基于物理光照单位的lighting的方式，这样的话会使我们手游在暗光情况下的表现，甚至在某种程度上是优于端游的表现的。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>方法论收口："延续端游 PBR 管线 + 升级物理光单位"是管线连续性与技术升级的平衡选择——延续 PBR 管线意味着美术资产的制作语义、参数体系、审校流程可以平移，团队学习成本与资产重制成本可控；升级光单位则把端游时代 LDR 思维的天花板拆掉。"暗光情况下的表现某种程度上优于端游"这句话的机制值得讲透：端游管线没有物理光单位与自动曝光，夜景靠美术手动压暗与调亮（LDR 思维，颜色精度在 8bit 里硬挤，暗部层次必然受损）；手游用物理单位度量场景照度 + 自动曝光把任意亮度映射到显示范围 + 更好的 tonemap 曲线，夜景暗部有真实的层次过渡——这就是"某种意义上超越端游"的实质：超越发生在曝光管理与色调映射这一层，而不是几何与阴影。这与开篇的"甚至超越了端游的表现"首尾呼应，口径一致，可以确认演讲者对"超越"的边界始终是清醒的。</p></div>
+</article>
+<article class="para">
+<div class="zh"><p>我想这其实应该可以回答上面的一个问题了吧。以上就是我今天的所有的分享环节，谢谢大家的支持，也希望大家继续支持我们的游戏，同时有机会和大家更多的交流，谢谢大家！再见。</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>收尾句。值得注意的是"我想这其实应该可以回答上面的一个问题了吧"——物理光单位让暗光表现优于端游，这句实际上回收了第一个问题（更低规格更高标准）的伏笔：规格更低（手机），但通过曝光体系与取舍后的预算分配，在特定维度（暗光氛围）达到了高于端游的观感。整场分享的完整逻辑链至此闭合：三维平衡（画质/帧率/功耗）→ 技术栈演进（线程 → Vulkan → GPU 驱动）→ 专题落地（地形/植被/家园）→ 放弃记录（VT 压缩/延迟着色）→ 取舍揭晓（阴影烘焙）。作为 2020 年移动端渲染工程的一手史料，这份转写稿的信息密度和诚实度都是同期分享中的上乘之作，其主要缺憾（PPT 图表全部丢失、性能数字缺场景与档位上下文、无低端机策略披露）则是文字稿这种载体的固有损失。</p></div>
+</article>
+</section>
+<section class="chapter" id="source-note">
+<header class="ch-head"><span class="ch-en">Source</span><h2>信源与转载说明</h2></header>
+<article class="para">
+<div class="zh"><p>如若转载，请注明出处：http://www.gamelook.com.cn/2020/12/407368/</p></div>
+<div class="ex-card"><div class="ex-title">🔍 专家解析</div><p>信源与使用说明：本精读的原文（ZH 栏）全部取自 GameLook 2020 年 12 月 10 日发布的 TGDC 2020 演讲文字稿（转载地址如上），按收录管线的中文原文模式处理——原文照录，解析另栏。该文字稿未保留演讲 PPT 与现场截图（正文提及的至少三处配图均缺失），TGDC 官方渠道（腾讯游戏学院）有演讲完整录像，需要核对画面证据（性能对比图、压缩对比图、簇光可视化图）的读者建议以录像为准。本精读中所有性能数字的复核结论汇总：顶点数 42 万 → 8.6 万（-79.5%）、地形 GPU 2.9ms@iPhone 8 Plus（A11，2017 机型）、GPU 侧省约四分之一（反推旧值约 3.9ms）、CPU 两线程各省 5ms+、Vulkan 提交线程 +30%、VT 更新 4ms 内（2048×2048×3 张未压缩约 48MB）、家园 128×128 米、55 盏灯/单区 8+ 盏、Hi-Z 生成 256 工作组×128 线程（源深度分辨率未给出，映射无法唯一复算）——凡此皆已在对应段落标注口径与不确定性。</p></div>
+</article>
+</section>
+<section class="chapter" id="refs"><header class="ch-head"><span class="ch-en">Further Reading</span><h2>延伸阅读：演讲背后的技术源流</h2></header><ol class="ref-list"><li class="ref"><div class="ref-txt">Ubisoft Montreal, GPU-Driven Rendering Pipelines, SIGGRAPH 2015 Advances in Real-Time Rendering course（《刺客信条：大革命》）</div><div class="ref-cmt">演讲点名认祖的开山之作。剔除、间接绘制、GPU 上闭环的完整蓝图都在这里，天刀的移动端落地可视为本文在 API 受限环境下的重新推导。</div></li><li class="ref"><div class="ref-txt">Graham Wihlidal (DICE), Optimizing the Graphics Pipeline with Compute, GDC 2016</div><div class="ref-cmt">即演讲中"2016 年 GDC 上 EA 寒霜引擎"所指。把几何准备阶段整体搬进计算着色器的系统方法，其中工作组共享内存与归约的用法与天刀 Hi-Z 生成一节直接对应。</div></li><li class="ref"><div class="ref-txt">Frank Losasso &amp; Hugues Hoppe, Geometry Clipmaps: Terrain Rendering Using Nested Regular Grids, SIGGRAPH 2004</div><div class="ref-cmt">天刀上一版 CPU 地形算法的原典。嵌套环形网格 + 距离 LOD 的经典设计，对照阅读可看清 GPU 驱动版补上深度剔除与复杂度 LOD 后的增量。</div></li><li class="ref"><div class="ref-txt">J.M.P. van Waveren (id Software), Real-Time DXT Compression 系列文章, 2006-2008</div><div class="ref-cmt">GPU 实时块压缩的先例（Doom/雷神之锤时代为流式贴图而生）。天刀把同一思路平移到 ASTC/PVRTC 与计算着色器，属于这条技术谱系在移动端的罕见延续。</div></li><li class="ref"><div class="ref-txt">Brian Karis (Epic Games), Nanite: A Deep Dive, SIGGRAPH 2021</div><div class="ref-cmt">发布于本演讲半年后。簇化几何 + GPU 驱动剔除 + 间接光栅的极致形态，正好用来对照天刀在无 mesh shader、无 bindless 硬件上手工模拟同构思想的边界在哪里。</div></li><li class="ref"><div class="ref-txt">Khronos Group, Vulkan Specification（subpass 与 input attachment 章节）及 Arm/Qualcomm 移动 GPU 最佳实践指南</div><div class="ref-cmt">cluster deferred 一节"subpass"的延伸背景：tile 架构上把 G-Buffer 留在片上内存的机制。读懂它就明白移动端延迟着色的带宽账到底怎么算，以及天刀当年放弃判决的技术底细。</div></li></ol></section>
+  </main>
+</div>
+
+<footer class="foot">
+  <a href="index.html">← 返回收录书架</a> · 收录精读系列 · 译文与解析仅供学习交流 · 原文版权归原作者所有
+</footer>
+
+<script>
+(function(){
+  var bar = document.getElementById('progress');
+  var topBtn = document.getElementById('top-btn');
+  window.addEventListener('scroll', function(){
+    var h = document.documentElement;
+    var p = h.scrollTop / (h.scrollHeight - h.clientHeight || 1);
+    bar.style.width = (p * 100).toFixed(2) + '%';
+    topBtn.classList.toggle('on', h.scrollTop > 600);
+  }, {passive:true});
+  topBtn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  // 目录高亮
+  var items = Array.prototype.slice.call(document.querySelectorAll('.toc-item'));
+  var secs = items.map(function(a){ return document.getElementById(a.getAttribute('href').slice(1)); });
+  function spy(){
+    var y = window.scrollY + 140, idx = 0;
+    for (var i = 0; i < secs.length; i++){ if (secs[i] && secs[i].offsetTop <= y) idx = i; }
+    items.forEach(function(a, i){ a.classList.toggle('now', i === idx); });
+  }
+  window.addEventListener('scroll', spy, {passive:true});
+  spy();
+})();
+
+</script>
+</body>
+</html>
