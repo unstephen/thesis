@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C++ 常用代码小抄 · 初赛入门版</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --accent: #3b6ef6;
+    --accent-soft: #eaf0ff;
+    --green: #0f9d58;
+    --green-soft: #e6f4ea;
+    --red: #d93025;
+    --red-soft: #fdeceb;
+    --amber: #b45309;
+    --amber-soft: #fef3c7;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+    --border: #e5e7eb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.75;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; }
+
+  header.hero {
+    background: linear-gradient(135deg, #1e3a8a, #3b6ef6);
+    color: #fff;
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+  }
+  header.hero h1 { font-size: 26px; margin-bottom: 6px; }
+  header.hero p { opacity: .9; font-size: 14px; }
+  .hero-badges { margin-top: 12px; }
+  .hero-badges span {
+    display: inline-block;
+    background: rgba(255,255,255,.18);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 12.5px;
+    margin-right: 8px;
+  }
+
+  section.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 20px;
+  }
+  h2 {
+    font-size: 19px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .num {
+    background: var(--accent);
+    color: #fff;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    flex: none;
+  }
+
+  pre.code {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13.5px;
+    line-height: 1.9;
+    overflow-x: auto;
+    margin: 10px 0 6px;
+    white-space: pre;
+  }
+  .cm { color: #94a3b8; }          /* 注释 */
+  .kw { color: #7dd3fc; }          /* 关键字 */
+  .hl { color: #fde68a; }          /* 高亮 */
+  .str { color: #86efac; }         /* 字符串 */
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-top: 10px;
+  }
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--accent-soft); color: #1e3a8a; }
+  td code, .inline-code {
+    font-family: Consolas, monospace;
+    background: #eef2f7;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-size: 13px;
+    color: #0f3668;
+  }
+
+  .anchor {
+    background: var(--amber-soft);
+    border-left: 4px solid var(--amber);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    color: #7c4a03;
+    margin-top: 10px;
+  }
+  .anchor b { color: #92400e; }
+
+  .trap {
+    background: var(--red-soft);
+    border-left: 4px solid var(--red);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    color: #8a2420;
+    margin-top: 10px;
+  }
+  .good {
+    background: var(--green-soft);
+    border-left: 4px solid var(--green);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13.5px;
+    color: #14683c;
+    margin-top: 10px;
+  }
+
+  .quiz { margin-top: 14px; }
+  .quiz .q {
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .quiz .q b { color: #1e3a8a; }
+  .quiz details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+  .quiz details p { font-size: 13.5px; margin-top: 6px; color: #14683c; }
+
+  footer.tip {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12.5px;
+    margin-top: 28px;
+  }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    section.card { break-inside: avoid; border: 1px solid #ccc; }
+    pre.code { background: #f1f5f9 !important; color: #1f2430 !important; }
+    .cm, .kw, .hl, .str { color: #475569 !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>📋 C++ 常用代码小抄</h1>
+  <p>入门信竞赛前翻一眼 · 全部离线可用 · 可直接打印贴墙</p>
+  <div class="hero-badges">
+    <span>✏️ 内含本人真实踩坑史</span>
+    <span>🎯 带自测题（点开看答案）</span>
+    <span>🖨️ Ctrl+P 打印友好</span>
+  </div>
+</header>
+
+<!-- 1 骨架 -->
+<section class="card">
+  <h2><span class="num">1</span>万能骨架（每题开头都抄这个）</h2>
+<pre class="code"><span class="kw">#include</span> &lt;iostream&gt;      <span class="cm">// 搬进 cin/cout 的工具箱</span>
+<span class="kw">using namespace</span> std;     <span class="cm">// 报名：后面不用写 std:: 姓氏</span>
+
+<span class="kw">int</span> main() {             <span class="cm">// 程序大门，从这里开始执行</span>
+
+    <span class="kw">return</span> <span class="hl">0</span>;            <span class="cm">// 程序正常结束（体检合格）</span>
+}                        <span class="cm">// 和 main 的 { 配对</span></pre>
+  <div class="trap">✏️ <b>踩坑史</b>：<code>usin</code>→<code>using</code>、<code>namspace</code>→<code>namespace</code>、<code>reture</code>→<code>return</code>。关键词是固定咒语，错一个字母编译器就不认识，它不会像老师一样猜你的意思。</div>
+</section>
+
+<!-- 2 输入输出 -->
+<section class="card">
+  <h2><span class="num">2</span>输入输出</h2>
+<pre class="code"><span class="kw">int</span> x;
+cin <span class="hl">&gt;&gt;</span> x;                <span class="cm">// 读入：箭头朝变量「装进去」</span>
+cout <span class="hl">&lt;&lt;</span> x <span class="hl">&lt;&lt;</span> endl;       <span class="cm">// 输出：箭头朝外「倒出来」，endl 换行</span>
+cout &lt;&lt; x &lt;&lt; <span class="str">" "</span> &lt;&lt; y;   <span class="cm">// 两个数中间加空格</span></pre>
+  <div class="anchor">🧠 <b>记忆锚点</b>：<code>cin &gt;&gt;</code> 箭头指向变量 = 往里装；<code>cout &lt;&lt;</code> 箭头背对变量 = 往外倒。</div>
+</section>
+
+<!-- 3 类型 -->
+<section class="card">
+  <h2><span class="num">3</span>常用类型（选装数据的盒子）</h2>
+<pre class="code"><span class="kw">int</span> x;           <span class="cm">// 整数，装到约 21 亿</span>
+<span class="kw">long long</span> x;     <span class="cm">// 大整数，装到约 922 亿亿（数据大就用它）</span>
+<span class="kw">double</span> x;        <span class="cm">// 小数</span>
+<span class="kw">char</span> c;          <span class="cm">// 单个字符，如 'A'</span>
+<span class="kw">bool</span> flag;       <span class="cm">// 真 / 假，只有 true 和 false</span></pre>
+  <div class="good">✅ <b>已掌握</b>：数据超过 21 亿要换 <code>long long</code>（llabs 那题已经用对了）。</div>
+</section>
+
+<!-- 4 运算符 -->
+<section class="card">
+  <h2><span class="num">4</span>运算符</h2>
+<pre class="code">a + b    a - b    a * b    a / b      <span class="cm">// 加减乘除（整数除法舍小数：7/2=3）</span>
+a % b                                 <span class="cm">// 取余数：7%2=1（判断整除全靠它）</span>
+a <span class="hl">==</span> b                               <span class="cm">// 等于（两个等号！）</span>
+a <span class="hl">!=</span> b                               <span class="cm">// 不等于（连体婴，中间无空格）</span>
+a &gt; b    a &lt; b    a &gt;= b    a &lt;= b   <span class="cm">// 比较</span>
+<span class="hl">&amp;&amp;</span>                                   <span class="cm">// 并且（两边都真才真）</span>
+<span class="hl">||</span>                                   <span class="cm">// 或者（一边真就真）</span>
+<span class="hl">!</span>                                    <span class="cm">// 取反</span></pre>
+  <div class="trap">✏️ <b>踩坑史</b>：<code>!</code> 和 <code>=</code> 中间加了空格就拆成两个东西，编译器直接懵。<code>==</code> 是问句（相等吗？），<code>=</code> 是赋值（把右边塞给左边）。</div>
+  <div class="quiz">
+    <div class="q">🎯 <b>自测</b>：闰年判断那条条件怎么写？（点下方看答案）</div>
+    <details><summary>查看答案</summary><p><code>y % 400 == 0 || (y % 4 == 0 &amp;&amp; y % 100 != 0)</code> —— 能被400整除，或者能被4整除但不能被100整除。</p></details>
+  </div>
+</section>
+
+<!-- 5 判断 -->
+<section class="card">
+  <h2><span class="num">5</span>判断</h2>
+<pre class="code"><span class="kw">if</span> (条件) {               <span class="cm">// 条件为真走这里</span>
+    ...
+} <span class="kw">else if</span> (另一个条件) {   <span class="cm">// 上面的不真才来问这个</span>
+    ...
+} <span class="kw">else</span> {                  <span class="cm">// 全都不真走这里</span>
+    ...
+}</pre>
+  <div class="anchor">🧠 <b>范例</b>：你的闰年程序就是标准 if-else 结构，逻辑完全正确，只输在拼写。</div>
+</section>
+
+<!-- 6 工具函数 -->
+<section class="card">
+  <h2><span class="num">6</span>常用工具函数</h2>
+  <table>
+    <tr><th>代码</th><th>作用</th><th>要搬的工具箱</th></tr>
+    <tr><td><code>abs(x)</code></td><td>int 绝对值</td><td><code>&lt;cstdlib&gt;</code></td></tr>
+    <tr><td><code>llabs(x)</code></td><td>long long 绝对值</td><td><code>&lt;cstdlib&gt;</code> ✅用过</td></tr>
+    <tr><td><code>fabs(x)</code></td><td>小数绝对值</td><td><code>&lt;cmath&gt;</code></td></tr>
+    <tr><td><code>sqrt(x)</code></td><td>开平方</td><td><code>&lt;cmath&gt;</code></td></tr>
+    <tr><td><code>pow(a, b)</code></td><td>a 的 b 次方</td><td><code>&lt;cmath&gt;</code></td></tr>
+    <tr><td><code>max(a, b)</code></td><td>两数取大</td><td><code>&lt;algorithm&gt;</code></td></tr>
+    <tr><td><code>min(a, b)</code></td><td>两数取小</td><td><code>&lt;algorithm&gt;</code></td></tr>
+    <tr><td><code>swap(a, b)</code></td><td>交换两数</td><td><code>&lt;algorithm&gt;</code></td></tr>
+  </table>
+  <div class="anchor">🧠 <b>工具箱逻辑</b>：函数不住在程序里，要用谁就得先 <code>#include</code> 把它家的工具箱搬进来——就像 llabs 住在 &lt;cstdlib&gt; 里。</div>
+</section>
+
+<!-- 7 循环 -->
+<section class="card">
+  <h2><span class="num">7</span>循环（提前预告，后面会练）</h2>
+<pre class="code"><span class="kw">for</span> (<span class="kw">int</span> i = <span class="hl">0</span>; i &lt; n; i++) {   <span class="cm">// 从 0 数到 n-1，共 n 圈</span>
+    ...
+}
+<span class="kw">while</span> (条件) {                   <span class="cm">// 条件为真就一直转</span>
+    ...
+}</pre>
+  <div class="anchor">🧠 <b>for 三件套</b>：起点（int i = 0）→ 终点条件（i &lt; n）→ 步子（i++，每次加1）。</div>
+  <div class="quiz">
+    <div class="q">🎯 <b>自测</b>：想输出 1~100 所有数，for 括号里三件套怎么写？</div>
+    <details><summary>查看答案</summary><p><code>for (int i = 1; i &lt;= 100; i++)</code> —— 从 1 出发，数到 100 为止，每步加 1。</p></details>
+  </div>
+</section>
+
+<footer class="tip">
+  拼写在案三处坑：using namespace ✏️ return ✏️ != 中间无空格<br>
+  生成于 2026-11-08 · 离线可用 · 双击即开
+</footer>
+
+</div>
+</body>
+</html>
